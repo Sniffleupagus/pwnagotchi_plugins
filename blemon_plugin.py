@@ -14,6 +14,10 @@ class BLEMon(plugins.Plugin):
 
     def __init__(self):
         logging.debug("BLEMon plugin created")
+        self.blecount = 0
+        self.blemaxcount = 0
+        self.stopRecon = False
+        self.agent = None
 
     # called when http://<host>:<port>/plugins/<plugin>/ is called
     # must return a html page
@@ -23,10 +27,20 @@ class BLEMon(plugins.Plugin):
 
     # called when the plugin is loaded
     def on_loaded(self):
-        logging.warning("BLEMon loaded with options = " % self.options)
+        if 'face' not in self.options:
+            self.options['face'] = "(B+B)"
+        logging.warning("BLEMon loaded! with options = " % self.options)
 
     # called before the plugin is unloaded
     def on_unload(self, ui):
+        logging.info("[BLEMON] Unloading")
+        if self.stopRecon:
+            try:
+                logging.info("[BLEMON] Stopping ble.recon")
+                self.agent.run('ble.recon off; ble.clear')
+                self.agent = None
+            except Exception as err:
+                logging.warning("[BLEMON] unload err: %s" % repr(err))
         pass
 
     # called hen there's internet connectivity
@@ -36,15 +50,13 @@ class BLEMon(plugins.Plugin):
     # called to setup the ui elements
     def on_ui_setup(self, ui):
         # add custom UI elements
-        ui.add_element('ups', LabeledValue(color=BLACK, label='UPS', value='0%/0V', position=(ui.width() / 2 - 25, 0),
+        ui.add_element('blemon_count', LabeledValue(color=BLACK, label='BLE', value='0%/0V', position=(0, 17),
                                            label_font=fonts.Bold, text_font=fonts.Medium))
         
     # called when the ui is updated
     def on_ui_update(self, ui):
         # update those elements
-        some_voltage = 0.1
-        some_capacity = 100.0
-        ui.set('ups', "%4.2fV/%2i%%" % (some_voltage, some_capacity))
+        ui.set('blemon_count', "%d/%d" % (self.blecount, self.blemaxcount))
 
     # called when the hardware display setup is done, display is an hardware specific object
     def on_display_setup(self, display):
@@ -52,9 +64,16 @@ class BLEMon(plugins.Plugin):
 
     # called when everything is ready and the main loop is about to start
     def on_ready(self, agent):
-        logging.info("unit is ready")
+        logging.info("[BLEMON] Starting ble.recon")
+        if self.agent is None: self.agent = agent
         # you can run custom bettercap commands if you want
-        #   agent.run('ble.recon on')
+        try:
+            agent.run('ble.clear; ble.recon on')
+            self.stopRecon = True
+        except Exception as err:
+            logging.warning("[BLEMON] ble probably already running: %s" % repr(err))
+            self.stopRecon = False
+
         # or set a custom state
         #   agent.set_bored()
 
@@ -161,26 +180,38 @@ class BLEMon(plugins.Plugin):
     
     def on_bcap_ble_device_new(self, agent, event):
         try:
-            logging.info("BLE device NEW: %s" % repr(event))
+            logging.info("[BLEMon] BLE device NEW: %s" % repr(event))
+            self.blecount = self.blecount + 1
+            if (self.blecount > self.blemaxcount): self.blemaxcount = self.blecount
+
+            display = agent.view()
+            display.set('face', self.options['face'])
+            display.set('blemon_count', "%d/%d" % (self.blecount, self.blemaxcount))
+            display.set('status', "Something blue!!!")
         except Exception as err:
             logging.info("[BLEMon] ble new Error: %s" % err)
     
     def on_bcap_ble_device_connected(self, agent, event):
         try:
-            logging.info("BLE device CON: %s" % repr(event))
+            logging.info("[BLEMon] BLE device CON: %s" % repr(event))
         except Exception as err:
             logging.info("[BLEMon] ble conn Error: %s" % err)
 
     def on_bcap_ble_device_disconnected(self, agent, event):
         try:
-            logging.info("BLE device DISCON: %s" % repr(event))
+            logging.info("[BLEMon] BLE device DISCON: %s" % repr(event))
         except Exception as err:
             logging.info("[BLEMon] ble disconn Error: %s" % err)
           
 
     def on_bcap_ble_device_lost(self, agent, event):
         try:
-               logging.info("BLE device LOST: %s" % repr(event))
+            logging.info("[BLEMon] BLE device LOST: %s" % repr(event))
+            self.blecount = self.blecount - 1
+            ui = agent.view()
+            ui.set('blecount', "%d/%d" % (self.blecount, self.blemaxcount))
+
+            ui.set('status', "So long blue!!!")
         except Exception as err:
             logging.info("[BLEMon] ble lost Error: %s" % err)
 
