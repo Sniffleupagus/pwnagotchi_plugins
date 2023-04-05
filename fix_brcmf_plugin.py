@@ -43,7 +43,6 @@ class Fix_BRCMF(plugins.Plugin):
         except Exception as err:
             logging.error("[FixBRCMF]SYSLOG FixBRCMF fail: %s" % err)            
 
-
     def on_epoch(self, agent, epoch, epoch_data):
         # get last 10 lines
         last_lines = ''.join(list(TextIOWrapper(subprocess.Popen(['journalctl','-n10','-k', '--since', '-3m'],
@@ -56,10 +55,10 @@ class Fix_BRCMF(plugins.Plugin):
             logging.info('[FixBRCMF] Blind-Bug detected. Restarting.')
             self._tryTurningItOffAndOnAgain(agent)
 
-            
+
     def _tryTurningItOffAndOnAgain(self, connection):
-        # avoid overlapping restarts
-        if self.isReloadingMon0 and (time.time() - self.LASTTRY) < 90:
+        # avoid overlapping restarts, but allow it if its been a while
+        if self.isReloadingMon0 and (time.time() - self.LASTTRY) < 120:
             logging.info("[FixBRCMF] Duplicate attempt ignored")
         else:
             self.isReloadingMon0 = True
@@ -67,9 +66,13 @@ class Fix_BRCMF(plugins.Plugin):
             
             logging.info("[FixBRCMF] Let's do this")
 
-            display = connection.view()
-            display.update(force=True, new_data={"status": "I'm blind! Try turning it off and on again",
-                                                 "face":faces.BORED})
+            if hasattr(connection, 'view'):
+                display = connection.view()
+                if display: display.update(force=True, new_data={"status": "I'm blind! Try turning it off and on again",
+                                                                 "face":faces.BORED})
+            else:
+                display = None
+
             logging.info('[FixBRCMF] Blind-Bug detected. Restarting.')
 
             # main divergence from WATCHDOG starts here
@@ -108,72 +111,85 @@ class Fix_BRCMF(plugins.Plugin):
                 logging.info("[FixBRCMF] mon0 down and deleted")
                 if display: display.update(force=True, new_data={"status": "mon0 d-d-d-down!",
                                                                  "face":faces.BORED})
-                else: print("mon0 d-d-d-down!")
+                else: print("mon0 down!")
             except Exception as nope:
                 logging.error("[FixBRCMF delete mon0] %s" % nope)
                 pass
                 
             logging.info("[FixBRCMF] Now trying modprobe -r")
 
-            try:
-                cmd_output = subprocess.check_output("sudo modprobe -r brcmfmac", shell=True)
-                logging.info("[FixBRCMF] unloaded brcmfmac")
-                if display: display.update(force=True, new_data={"status": "Turning it off...",
-                                                                 "face":faces.SMART})
-                else: print("Turning it off")
-                time.sleep(2)
-            except Exception as nope:
-                logging.error("[FixBRCMF modprobe -r] %s" % nope)
-                pass
 
-            
-            # ... and turn it back on again
-            
-            logging.info("[FixBRCMF] Now trying modprobe and mon0 up shit")
-
-            try:
-                # reload the brcmfmac kernel module
-                cmd_output = subprocess.check_output("sudo modprobe brcmfmac", shell=True)
-                logging.info("[FixBRCMF] reloaded brcmfmac")
-                if not display: print("reloaded brcmfmac")
-                time.sleep(10) # give it some time for wlan device to stabilize, or whatever
-
-                # remake the mon0 interface
-                tries = 0
-                while tries < 3:
-                    tries = tries + 1
+            # Try this sequence 3 times until it is reloaded
+            tries = 0
+            while tries < 3:
+                tries = tries + 1
+                try:
+                    # unload the module
+                    cmd_output = subprocess.check_output("sudo modprobe -r brcmfmac", shell=True)
+                    logging.info("[FixBRCMF] unloaded brcmfmac")
+                    if display: display.update(force=True, new_data={"status": "Turning it off...",
+                                                                     "face":faces.SMART})
+                    else: print("Turning it off #%d" % tries)
+                    time.sleep(tries)
+                    
+                    # reload the module
                     try:
-                        cmd_output = subprocess.check_output("sudo iw phy \"$(iw phy | head -1 | cut -d' ' -f2)\" interface add mon0 type monitor && sudo ifconfig mon0 up", shell=True)
-                        if not display: print("mon0 recreated")
-                        tries = 3
-                    except Exception as cerr:
-                        if not display: print("failed loading mon0 attempt #%d: %s", (tries, cerr))
+                        # reload the brcmfmac kernel module
+                        cmd_output = subprocess.check_output("sudo modprobe brcmfmac", shell=True)
+                        if not display: print("reloaded brcmfmac")
+                        logging.info("[FixBRCMF] reloaded brcmfmac")
+                        time.sleep(5 * tries) # give it some time for wlan device to stabilize, or whatever
+
+                        # success! now make the mod0
+                        try:
+                            cmd_output = subprocess.check_output("sudo iw phy \"$(iw phy | head -1 | cut -d' ' -f2)\" interface add mon0 type monitor && sudo ifconfig mon0 up", shell=True)
+                            if not display: print("mon0 recreated on attempt #%d" % tries)
+                            tries = 5
+                        except Exception as cerr: 
+                            if not display: print("failed loading mon0 attempt #%d: %s", (tries, repr(cerr)))
                         
+                    except Exception as err: # from modprobe
+                        if not display: print("Failed unloading brcmfmac")
+                        logging.error("[FixBRCMF] Failed unloading brcmfmac %s" % repr(err))
+
+                    
+                except Exception as nope: # from modprobe -r
+                    # fails if already unloaded, so probably fine
+                    logging.error("[FixBRCMF #%d modprobe -r] %s" % (tries, repr(nope)))
+                    if not display: print("[FixBRCMF #%d modprobe -r] %s" % (tries, repr(nope)))
+                    pass
+            
+                if tries < 3:
+                    logging.info("[FixBRCMF] mon0 didn't make it. trying again")
+                    if not display: print(" mon0 didn't make it. trying again")
+
+            # exited the loop, so hopefully it loaded
+            if tries is 5:
+                logging.info("[FixBRCMF] WOOHOO!!!!! I think it really worked!")
                 if display: display.update(force=True, new_data={"status": "And back on again...",
                                                                  "face":faces.INTENSE})
                 else: print("And back on again...")
                 logging.info("[FixBRCMF] mon0 back up")
-                time.sleep(1) # give it a second before telling bettercap
-            except Exception as err:
-                logging.error("[FixBRCMF modprobe or mon0] %s" % err)
+                time.sleep(5) # give it a second before telling bettercap
 
-            logging.info("[FixBRCMF] renable recon")
 
-            try:
-                result = connection.run("wifi.recon on")
-                if result["success"]:
-                    if display: display.update(force=True, new_data={"status": "I can see again! (probably)",
-                                                                     "face":faces.HAPPY})
-                    else: print("I can see again")
-                    logging.info("[FixBRCMF] wifi.recon on")
-                else:
-                    logging.error("[FixBRCMF] wifi.recon did not start up")
+                logging.info("[FixBRCMF] renable recon")
 
-            except Exception as err:
-                logging.error("[FixBRCMF wifi.recon on] %s" % err)
+                try:
+                    result = connection.run("wifi.clear; wifi.recon on")
+                    if result["success"]:
+                        if display: display.update(force=True, new_data={"status": "I can see again! (probably)",
+                                                                         "face":faces.HAPPY})
+                        else: print("I can see again")
+                        logging.info("[FixBRCMF] wifi.recon on")
+                    else:
+                        logging.error("[FixBRCMF] wifi.recon did not start up")
 
-            self.isReloadingMon0 = True
+                except Exception as err:
+                    logging.error("[FixBRCMF wifi.recon on] %s" % repr(err))
+
             self.LASTTRY = time.time()
+            self.isReloadingMon0 = False
 
 
 if __name__ == "__main__":
