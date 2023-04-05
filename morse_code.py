@@ -154,7 +154,7 @@ class MorseCode(plugins.Plugin):
 
     # called when everything is ready and the main loop is about to start
     def on_ready(self, agent):
-        self._queue_message("READY O K")
+        self._queue_message("READY OK")
         # you can run custom bettercap commands if you want
         #   agent.run('ble.recon on')
         # or set a custom state
@@ -192,7 +192,8 @@ class MorseCode(plugins.Plugin):
         pass
 
     # called by bettercap events
-    def on_bc_event(self, agent, event):
+    def on_bcap_ble_device_new(self, agent, event):
+        self._queue_message("NEW BLE")
         pass
     
     # called when a non overlapping wifi channel is found to be free
