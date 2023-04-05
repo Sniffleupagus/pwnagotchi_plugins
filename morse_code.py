@@ -1,4 +1,14 @@
+#
+# Morse Code for pwnagotchi
+#
+# extending the led.py plugin to blink messages
+# in morse code
+#
+
+from threading import Event
+import _thread
 import logging
+import time
 
 import pwnagotchi.plugins as plugins
 from pwnagotchi.ui.components import LabeledValue
@@ -29,17 +39,28 @@ class MorseCode(plugins.Plugin):
                         '?':'..--..', '/':'-..-.', '-':'-....-',
                         '(':'-.--.', ')':'-.--.-'}
 
+    def _convert_code(self, msg):
+        didah = ''
+        for l in msg:
+            l = l.upper()
+            if l in self.MORSE_CODE_DICT:
+                didah += self.MORSE_CODE_DICT[l] + ' '
+            else:
+                # add a space for unknown characters
+                didah += ' '
+        return didah
+
     def _blink(self, msg):
         if len(msg) > 0:
-            logging.debug("[led] using pattern '%s'" % pattern)
+            pattern = self._convert_code(msg)
+            logging.debug("[MORSE] '%s' -> '%s'" % (msg, pattern))
 
             # blank led for one measure ahead of message
             self._led(1)
             time.sleep(7 * self._delay / 1000.0)
-            
+
             for c in pattern:
-                if c == 'M':
-                elif c == '.':
+                if c == '.':
                     self._led(0)
                     time.sleep(self._delay / 1000.0)
                     self._led(1)
@@ -49,34 +70,74 @@ class MorseCode(plugins.Plugin):
                     time.sleep(3 * self._delay / 1000.0)
                     self._led(1)
                     time.sleep(self._delay / 1000.0)
-                elif c == '/':
-                    self._led(1)
-                    time.sleep(2 * self._delay / 1000.0)
                 elif c == ' ':
                     time.sleep(2 * self._delay / 1000.0)
                 else:
                     # unexpected character... skip it
                     pass
-                    
+
             # blank period to end message
             self._led(1)
             time.sleep(7 * self._delay / 1000.0)
             # and back on
             self._led(0)
-    
+
+    # thread stuff copied from plugins/default/led.py
+
+    # queue a message
+    #   but if there is one already (busy) then don't
+    def _queue_message(self, message):
+        if not self._is_busy:
+            self._message = message
+            self._event.set()
+            logging.debug("[Morse] message '%s' set", message)
+        else:
+            logging.debug("[Morse] skipping '%s' because the worker is busy", message)
+
+    def _led(self, on):
+        with open(self._led_file, 'wt') as fp:
+            fp.write(str(on))
+
+    def _worker(self):
+        while True:
+            self._event.wait()
+            self._event.clear()
+            self._is_busy = True
+
+            try:
+                self._blink(self._message)
+            except Exception as e:
+                logging.exception("[Morse] error while blinking")
+
+            finally:
+                self._is_busy = False
     
     def __init__(self):
-        logging.debug("Morse Code plugin initializing")
+        logging.debug("[Morse] Code plugin initializing")
+        self._is_busy = False
+        self._event = Event()
+        self._message = None
+        self._led_file = "/sys/class/leds/led0/brightness"
+        self._delay = 200
+
 
     # called when http://<host>:<port>/plugins/<plugin>/ is called
     # must return a html page
     # IMPORTANT: If you use "POST"s, add a csrf-token (via csrf_token() and render_template_string)
     def on_webhook(self, path, request):
-        pass
+        logging.info("[Morse] Web hook: %s" % repr(request))
+        return "<html><body>Woohoo!</body></html>"
 
     # called when the plugin is loaded
     def on_loaded(self):
-        logging.warning("WARNING: this plugin should be disabled! options = " % self.options)
+        logging.info("[Morse] loaded" % self.options)
+
+        self._led_file = "/sys/class/leds/led%d/brightness" % self.options['led']
+        self._delay = int(self.options['delay'])
+
+        logging.info("[led] plugin loaded for %s" % self._led_file)
+        self._queue_message('loaded')
+        _thread.start_new_thread(self._worker, ())
 
     # called before the plugin is unloaded
     def on_unload(self, ui):
@@ -86,26 +147,13 @@ class MorseCode(plugins.Plugin):
     def on_internet_available(self, agent):
         pass
 
-    # called to setup the ui elements
-    def on_ui_setup(self, ui):
-        # add custom UI elements
-        ui.add_element('ups', LabeledValue(color=BLACK, label='UPS', value='0%/0V', position=(ui.width() / 2 - 25, 0),
-                                           label_font=fonts.Bold, text_font=fonts.Medium))
-
-    # called when the ui is updated
-    def on_ui_update(self, ui):
-        # update those elements
-        some_voltage = 0.1
-        some_capacity = 100.0
-        ui.set('ups', "%4.2fV/%2i%%" % (some_voltage, some_capacity))
-
     # called when the hardware display setup is done, display is an hardware specific object
     def on_display_setup(self, display):
         pass
 
     # called when everything is ready and the main loop is about to start
     def on_ready(self, agent):
-        logging.info("unit is ready")
+        self._queue_message("READY O K")
         # you can run custom bettercap commands if you want
         #   agent.run('ble.recon on')
         # or set a custom state
@@ -113,6 +161,7 @@ class MorseCode(plugins.Plugin):
 
     # called when the AI finished loading
     def on_ai_ready(self, agent):
+        self._queue_message("AI READY")
         pass
 
     # called when the AI finds a new set of parameters
@@ -133,10 +182,12 @@ class MorseCode(plugins.Plugin):
 
     # called when the AI got the best reward so far
     def on_ai_best_reward(self, agent, reward):
+        self._queue_message("WOOHOO")
         pass
 
     # called when the AI got the worst reward so far
     def on_ai_worst_reward(self, agent, reward):
+        self._queue_message("MEH")
         pass
 
     # called by bettercap events
@@ -153,6 +204,7 @@ class MorseCode(plugins.Plugin):
 
     # called when the status is set to sad
     def on_sad(self, agent):
+        self._queue_message("SAD!!!")
         pass
 
     # called when the status is set to excited
@@ -165,6 +217,7 @@ class MorseCode(plugins.Plugin):
 
     # called when the agent is rebooting the board
     def on_rebooting(self, agent):
+        self._queue_message("HASTA LAVISTA BABY")
         pass
 
     # called when the agent is waiting for t seconds
@@ -186,10 +239,12 @@ class MorseCode(plugins.Plugin):
 
     # called when the agent is sending an association frame
     def on_association(self, agent, access_point):
+        self._queue_message("ASSOC")
         pass
 
     # called when the agent is deauthenticating a client station from an AP
     def on_deauthentication(self, agent, access_point, client_station):
+        self._queue_message("PWNED")
         pass
 
     # callend when the agent is tuning on a specific channel
@@ -199,6 +254,7 @@ class MorseCode(plugins.Plugin):
     # called when a new handshake is captured, access_point and client_station are json objects
     # if the agent could match the BSSIDs to the current list, otherwise they are just the strings of the BSSIDs
     def on_handshake(self, agent, filename, access_point, client_station):
+        self._queue_message("HI FRIEND")
         pass
 
     # called when an epoch is over (where an epoch is a single loop of the main algorithm)
@@ -207,8 +263,10 @@ class MorseCode(plugins.Plugin):
 
     # called when a new peer is detected
     def on_peer_detected(self, agent, peer):
+        self._queue_message("HI FRIEND")
         pass
 
     # called when a known peer is lost
     def on_peer_lost(self, agent, peer):
+        self._queue_message("BYE FRIEND")
         pass
