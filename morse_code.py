@@ -90,9 +90,9 @@ class MorseCode(plugins.Plugin):
         if not self._is_busy:
             self._message = message
             self._event.set()
-            logging.debug("[Morse] message '%s' set", message)
+            logging.info("[Morse] message '%s' set", message)
         else:
-            logging.debug("[Morse] skipping '%s' because the worker is busy", message)
+            logging.info("[Morse] skipping '%s' because the worker is busy", message)
 
     def _led(self, on):
         with open(self._led_file, 'wt') as fp:
@@ -111,6 +111,7 @@ class MorseCode(plugins.Plugin):
 
             finally:
                 self._is_busy = False
+
     
     def __init__(self):
         logging.debug("[Morse] Code plugin initializing")
