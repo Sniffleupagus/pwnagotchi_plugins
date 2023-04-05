@@ -58,7 +58,8 @@ class Fix_BRCMF(plugins.Plugin):
 
     def _tryTurningItOffAndOnAgain(self, connection):
         # avoid overlapping restarts, but allow it if its been a while
-        if self.isReloadingMon0 and (time.time() - self.LASTTRY) < 120:
+        # (in case the last attempt failed before resetting "isReloadingMon0")
+        if self.isReloadingMon0 and (time.time() - self.LASTTRY) < 180:
             logging.info("[FixBRCMF] Duplicate attempt ignored")
         else:
             self.isReloadingMon0 = True
@@ -97,11 +98,11 @@ class Fix_BRCMF(plugins.Plugin):
                     else: print("Wifi recon paused")
                     time.sleep(2)
                 else:
-                    logging.warning("[FixBRCMF] wifi.recon off: FAILED")
+                    logging.warning("[FixBRCMF] wifi.recon off: FAILED: %s" % repr(result))
                     if display: display.update(force=True, new_data={"status": "Recon was busted (probably)",
                                                                      "face":random.choice((faces.BROKEN, faces.DEBUG))})
             except Exception as err:
-                logging.error("[FixBRCMF wifi.recon off] %s" % err)
+                logging.error("[FixBRCMF wifi.recon off] %s" % repr(err))
 
                 
             logging.info("[FixBRCMF] recon paused. Now trying mon0 shit")
@@ -120,6 +121,9 @@ class Fix_BRCMF(plugins.Plugin):
 
 
             # Try this sequence 3 times until it is reloaded
+            #
+            # Future: while "not fixed yet": blah blah blah. if "max_attemts", then reboot like the old days
+            #
             tries = 0
             while tries < 3:
                 tries = tries + 1
@@ -182,13 +186,14 @@ class Fix_BRCMF(plugins.Plugin):
                                                                          "face":faces.HAPPY})
                         else: print("I can see again")
                         logging.info("[FixBRCMF] wifi.recon on")
+                        self.LASTTRY = time.time() + 120 # 2 minute pause until next time.
                     else:
-                        logging.error("[FixBRCMF] wifi.recon did not start up")
+                        logging.error("[FixBRCMF] wifi.recon did not start up: %s" % repr(result))
 
                 except Exception as err:
                     logging.error("[FixBRCMF wifi.recon on] %s" % repr(err))
-
-            self.LASTTRY = time.time()
+            else:
+                self.LASTTRY = time.time()
             self.isReloadingMon0 = False
 
 
