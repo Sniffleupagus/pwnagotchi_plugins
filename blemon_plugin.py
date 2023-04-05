@@ -50,7 +50,7 @@ class BLEMon(plugins.Plugin):
     # called to setup the ui elements
     def on_ui_setup(self, ui):
         # add custom UI elements
-        ui.add_element('blemon_count', LabeledValue(color=BLACK, label='BLE', value='0%/0V', position=(0, 17),
+        ui.add_element('blemon_count', LabeledValue(color=BLACK, label='BLE', value='0/0', position=(0, 17),
                                            label_font=fonts.Bold, text_font=fonts.Medium))
         
     # called when the ui is updated
@@ -189,30 +189,30 @@ class BLEMon(plugins.Plugin):
             display.set('blemon_count', "%d/%d" % (self.blecount, self.blemaxcount))
             display.set('status', "Something blue!!!")
         except Exception as err:
-            logging.info("[BLEMon] ble new Error: %s" % err)
+            logging.warning("[BLEMon] ble new Error: %s" % err)
     
     def on_bcap_ble_device_connected(self, agent, event):
         try:
             logging.info("[BLEMon] BLE device CON: %s" % repr(event))
         except Exception as err:
-            logging.info("[BLEMon] ble conn Error: %s" % err)
+            logging.warning("[BLEMon] ble conn Error: %s" % err)
 
     def on_bcap_ble_device_disconnected(self, agent, event):
         try:
             logging.info("[BLEMon] BLE device DISCON: %s" % repr(event))
         except Exception as err:
-            logging.info("[BLEMon] ble disconn Error: %s" % err)
+            logging.warning("[BLEMon] ble disconn Error: %s" % err)
           
 
     def on_bcap_ble_device_lost(self, agent, event):
         try:
-            logging.info("[BLEMon] BLE device LOST: %s" % repr(event))
+            logging.debug("[BLEMon] BLE device LOST: %s" % repr(event))
             self.blecount = self.blecount - 1
             ui = agent.view()
             ui.set('blecount', "%d/%d" % (self.blecount, self.blemaxcount))
 
             ui.set('status', "So long blue!!!")
         except Exception as err:
-            logging.info("[BLEMon] ble lost Error: %s" % err)
+            logging.warning("[BLEMon] ble lost Error: %s" % err)
 
             
