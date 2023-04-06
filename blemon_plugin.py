@@ -181,13 +181,23 @@ class BLEMon(plugins.Plugin):
     def on_bcap_ble_device_new(self, agent, event):
         try:
             logging.info("[BLEMon] BLE device NEW: %s" % repr(event))
+            name = event['data']['name']
+            mac = event['data']['mac']
             self.blecount = self.blecount + 1
             if (self.blecount > self.blemaxcount): self.blemaxcount = self.blecount
 
             display = agent.view()
             display.set('face', self.options['face'])
             display.set('blemon_count', "%d/%d" % (self.blecount, self.blemaxcount))
-            display.set('status', "Something blue!!!")
+            if name is '':
+                display.set('status', "Something blue!!!")
+                if mac:
+                    # enqueue an enum. run one per epoch
+                    # if error, then repeat next time, maybe?
+                    res = self.agent.run('ble.enum %s' % mac)
+                    logging.info("[BLEMon] enum %s: %s" % (mac, repr(res)))
+            else:
+                display.set('status', "Blue buddy %s" % name)
         except Exception as err:
             logging.warning("[BLEMon] ble new Error: %s" % err)
     
@@ -195,7 +205,19 @@ class BLEMon(plugins.Plugin):
         try:
             logging.info("[BLEMon] BLE device CON: %s" % repr(event))
         except Exception as err:
-            logging.warning("[BLEMon] ble conn Error: %s" % err)
+            logging.warning("[BLEMon] ble CON Error: %s" % err)
+
+    def on_bcap_ble_device_service_discovered(self, agent, event):
+        try:
+            logging.info("[BLEMon] BLE device SVC: %s" % repr(event))
+        except Exception as err:
+            logging.warning("[BLEMon] ble SVC Error: %s" % err)
+
+    def on_bcap_ble_device_characteristic_discovered(self, agent, event):
+        try:
+            logging.info("[BLEMon] BLE device CHR: %s" % repr(event))
+        except Exception as err:
+            logging.warning("[BLEMon] ble CHR Error: %s" % err)
 
     def on_bcap_ble_device_disconnected(self, agent, event):
         try:
@@ -207,11 +229,15 @@ class BLEMon(plugins.Plugin):
     def on_bcap_ble_device_lost(self, agent, event):
         try:
             logging.debug("[BLEMon] BLE device LOST: %s" % repr(event))
+            name = event['data']['name']
             self.blecount = self.blecount - 1
             ui = agent.view()
             ui.set('blecount', "%d/%d" % (self.blecount, self.blemaxcount))
 
-            ui.set('status', "So long blue!!!")
+            if name is '':
+                ui.set('status', "So long blue!!!")
+            else:
+                ui.set('status', "Bye %s" % name)
         except Exception as err:
             logging.warning("[BLEMon] ble lost Error: %s" % err)
 
