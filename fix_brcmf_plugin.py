@@ -44,16 +44,18 @@ class Fix_BRCMF(plugins.Plugin):
             logging.error("[FixBRCMF]SYSLOG FixBRCMF fail: %s" % err)            
 
     def on_epoch(self, agent, epoch, epoch_data):
-        # get last 10 lines
-        last_lines = ''.join(list(TextIOWrapper(subprocess.Popen(['journalctl','-n10','-k', '--since', '-3m'],
-                                                stdout=subprocess.PIPE).stdout))[-10:])
-        if len(self.pattern.findall(last_lines)) >= 5:
-            logging.info("[FixBRCMF]**** Should trigger a reload of the mon0 device")
-            display = agent.view()
-            display.set('status', 'Blind-Bug detected. Restarting.')
-            display.update(force=True)
-            logging.info('[FixBRCMF] Blind-Bug detected. Restarting.')
-            self._tryTurningItOffAndOnAgain(agent)
+        # don't check if we ran a reset recently
+        if time.time() - self.LASTTRY > 180:
+            # get last 10 lines
+            last_lines = ''.join(list(TextIOWrapper(subprocess.Popen(['journalctl','-n10','-k', '--since', '-3m'],
+                                                                     stdout=subprocess.PIPE).stdout))[-10:])
+            if len(self.pattern.findall(last_lines)) >= 5:
+                logging.info("[FixBRCMF]**** Should trigger a reload of the mon0 device")
+                display = agent.view()
+                display.set('status', 'Blind-Bug detected. Restarting.')
+                display.update(force=True)
+                logging.info('[FixBRCMF] Blind-Bug detected. Restarting.')
+                self._tryTurningItOffAndOnAgain(agent)
 
 
     def _tryTurningItOffAndOnAgain(self, connection):
@@ -96,9 +98,10 @@ class Fix_BRCMF(plugins.Plugin):
                 cmd_output = subprocess.check_output("ip link show mon0", shell=True)
                 logging.info("[FixBRCMF ip link show mon0]: %s" % repr(cmd_output))
                 if ",UP," in str(cmd_output):
-                    logging.info("mon0 is up. Skipping reset.");
-                    self.isReloadingMon0 = False
-                    return
+                    logging.info("mon0 is up. Skip reset?");
+                    #print("mon0 is up. Skipping reset.");
+                    #self.isReloadingMon0 = False
+                    #return
             except Exception as err:
                 logging.error("[FixBRCMF ip link show mon0]: %s" % repr(cmd_output))
 
@@ -140,7 +143,6 @@ class Fix_BRCMF(plugins.Plugin):
             #
             tries = 0
             while tries < 3:
-                tries = tries + 1
                 try:
                     # unload the module
                     cmd_output = subprocess.check_output("sudo modprobe -r brcmfmac", shell=True)
@@ -162,7 +164,7 @@ class Fix_BRCMF(plugins.Plugin):
                         try:
                             cmd_output = subprocess.check_output("sudo iw phy \"$(iw phy | head -1 | cut -d' ' -f2)\" interface add mon0 type monitor && sudo ifconfig mon0 up", shell=True)
                             if not display: print("mon0 recreated on attempt #%d" % tries)
-                            tries = 5
+                            break
                         except Exception as cerr: 
                             if not display: print("failed loading mon0 attempt #%d: %s", (tries, repr(cerr)))
                         
@@ -176,39 +178,38 @@ class Fix_BRCMF(plugins.Plugin):
                     logging.error("[FixBRCMF #%d modprobe -r] %s" % (tries, repr(nope)))
                     if not display: print("[FixBRCMF #%d modprobe -r] %s" % (tries, repr(nope)))
                     pass
-            
+
+                tries = tries + 1
                 if tries < 3:
                     logging.info("[FixBRCMF] mon0 didn't make it. trying again")
                     if not display: print(" mon0 didn't make it. trying again")
 
             # exited the loop, so hopefully it loaded
-            if tries is 5:
+            if tries < 3:
                 logging.info("[FixBRCMF] WOOHOO!!!!! I think it really worked!")
                 if display: display.update(force=True, new_data={"status": "And back on again...",
                                                                  "face":faces.INTENSE})
                 else: print("And back on again...")
                 logging.info("[FixBRCMF] mon0 back up")
                 time.sleep(5) # give it a second before telling bettercap
-
-
-                logging.info("[FixBRCMF] renable recon")
-
-                try:
-                    result = connection.run("set wifi.interface mon0; wifi.clear; wifi.recon on")
-                    if result["success"]:
-                        if display: display.update(force=True, new_data={"status": "I can see again! (probably)",
-                                                                         "face":faces.HAPPY})
-                        else: print("I can see again")
-                        logging.info("[FixBRCMF] wifi.recon on")
-                        self.LASTTRY = time.time() + 120 # 2 minute pause until next time.
-                    else:
-                        logging.error("[FixBRCMF] wifi.recon did not start up: %s" % repr(result))
-
-                except Exception as err:
-                    logging.error("[FixBRCMF wifi.recon on] %s" % repr(err))
             else:
                 self.LASTTRY = time.time()
             self.isReloadingMon0 = False
+            
+            logging.info("[FixBRCMF] renable recon")
+            try:
+                result = connection.run("set wifi.interface mon0; wifi.clear; wifi.recon on")
+                if result["success"]:
+                    if display: display.update(force=True, new_data={"status": "I can see again! (probably)",
+                                                                     "face":faces.HAPPY})
+                    else: print("I can see again")
+                    logging.info("[FixBRCMF] wifi.recon on")
+                    self.LASTTRY = time.time() + 120 # 2 minute pause until next time.
+                else:
+                    logging.error("[FixBRCMF] wifi.recon did not start up: %s" % repr(result))
+
+            except Exception as err:
+                logging.error("[FixBRCMF wifi.recon on] %s" % repr(err))
 
 
 if __name__ == "__main__":
@@ -221,5 +222,5 @@ if __name__ == "__main__":
 
     agent = Client('localhost', port=8081, username="pwnagotchi", password="pwnagotchi");                    
 
-    fb.on_bcap_sys_log(agent, event)
+    fb.on_epoch(agent, event, None)
     
