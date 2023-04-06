@@ -95,6 +95,10 @@ class Fix_BRCMF(plugins.Plugin):
             try:
                 cmd_output = subprocess.check_output("ip link show mon0", shell=True)
                 logging.info("[FixBRCMF ip link show mon0]: %s" % repr(cmd_output))
+                if ",UP," in str(cmd_output):
+                    logging.info("mon0 is up. Skipping reset.");
+                    self.isReloadingMon0 = False
+                    return
             except Exception as err:
                 logging.error("[FixBRCMF ip link show mon0]: %s" % repr(cmd_output))
 
