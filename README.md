@@ -2,30 +2,61 @@
 
 Plugins for <a href="https://github.com/evilsocket/pwnagotchi/releases/latest">pwnagotchi</a>
 
+<img width="314" alt="netsucker-ble-uptime" src="https://user-images.githubusercontent.com/129890632/230241710-fd7047ce-89ac-4252-8812-4a51b3e6a2bc.png">
+
 # fix_brcmfmac.py
-Substitute for WATCHDOG that pauses wifi.recon, deletes the mon0 interface and the brcfmac kernel module,
-then reloads the module, remakes mon0, then restarts wifi.recon. No more rebooting every time one little
-annoying thing goes wrong. So far not configurable.
+<i>Did you try turning wlan0 off and on again?</i><p>
+
+Substitute for WATCHDOG that tries to fix the problem instead of rebooting. It checks the logs
+with journalctl, like watchdog. If it finds the "cant change channels" log messages it will:<p>
+
+<ol>
+<li>pauses wifi.recon in bettercap
+<li>delete the mon0 interface
+<li>modprobe -r brcfmac (unload kernel module for wlan0)
+<li>modprobe brcfmac (reload it)
+<li>remake mon0
+<li> restarts wifi.recon in bettercap
+</ol>
+
+Each epoch, it will make up to 3 attempts to reload the module. If it succeeds, it will
+wait at least 3 minutes for the lines in the logfile that already triggered it will have
+moved on.<p>
+
+fix_brcmfmac.py can also be run on the command line if the plugin isn't getting it.<p>
+<code>% python3 ./fix_brcmfmac.py
+  Performing brcmfmac reload and restart mon0...
+  Wifi recon paused
+  mon0 down!
+  Turning it off #1
+  reloaded brcmfmac
+  mon0 recreated on attempt #1
+  And back on again...
+  I can see again
+  %</code><p>
+
+<b>No more rebooting</b> every time one little annoying thing goes wrong (over and over and over). Long uptime! AI mode
+just keeps going! So far not configurable. Pauses have been tweaked to <i>seem to work most of the time</i>
+on a Rpi4, Rpi3, and Rpi0W.
 
 # blemon_plugin.py
-Counts BLE devices and max # seen at a time in the upper left under the line. Not very configurable yet.
+Counts BLE devices and max # seen at a time in the upper left under the line. Gets BLE info from bettercap events.
 <b>REQUIRES</b> modified <a href="https://github.com/Sniffleupagus/pwnagotchi-snflpgs/blob/master/pwnagotchi/agent.py">agent.py</a>
 from my fork of the evilsocket repository.<p>
 
-Conflicts with bt-tether (because bettercap takes the bluetooth device). Enable and disable them as
-needed in the plugins tab of the webUI, without having to restart pwnagotchi.
-
-The modified agent.py calls plugins.on("bcap_{EVENT_NAME}", blah blah, blah), so all the plugins can
+The modified agent.py calls plugins.on("bcap_{event_name}", blah blah, blah), so all the plugins can
 access anything that happens in bettercap. Some events may need to be unignored in the Events tab of
 bettercap, or removed from the config so they don't keep coming back.<p>
 
+Conflicts with bt-tether (because bettercap takes over the bluetooth device to scan). Enable and disable them as
+needed in the plugins tab of the webUI, without having to restart pwnagotchi.
 
 
 # morse_code.py
 
 Modified from the stock led.py plugin. It flashes morse code on the LED in response to events. It should
 work with the stock agent.py, but it will have more to blink about if you use the modified version. Messages
-are hard coded right now, configurable next time. Maybe.
+are generated in the code right now, but not configurable as config options yet. 
 
 <code>
 main.plugins.morse_code.enabled = true
