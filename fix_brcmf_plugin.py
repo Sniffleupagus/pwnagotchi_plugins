@@ -89,6 +89,16 @@ class Fix_BRCMF(plugins.Plugin):
             #    except Exception as err:
             #        logging.error("[FixBRCMF connection] %s" % err)
 
+
+            # attempt a sanity check. does mon0 exist?
+            # is it up?
+            try:
+                cmd_output = subprocess.check_output("ip link show mon0", shell=True)
+                logging.info("[FixBRCMF ip link show mon0]: %s" % repr(cmd_output))
+            except Exception as err:
+                logging.error("[FixBRCMF ip link show mon0]: %s" % repr(cmd_output))
+
+
             try:
                 result = connection.run("wifi.recon off")
                 if result["success"]:
@@ -180,7 +190,7 @@ class Fix_BRCMF(plugins.Plugin):
                 logging.info("[FixBRCMF] renable recon")
 
                 try:
-                    result = connection.run("wifi.clear; wifi.recon on")
+                    result = connection.run("set wifi.interface mon0; wifi.clear; wifi.recon on")
                     if result["success"]:
                         if display: display.update(force=True, new_data={"status": "I can see again! (probably)",
                                                                          "face":faces.HAPPY})
