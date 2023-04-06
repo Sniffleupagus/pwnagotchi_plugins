@@ -19,6 +19,7 @@ class Fix_BRCMF(plugins.Plugin):
     def __init__(self):
         self.options = dict()
         self.pattern = re.compile(r'brcmf_cfg80211_nexmon_set_channel.*?Set Channel failed')
+        self.pattern2 = re.compile(r'wifi error while hopping to channel')
         self.isReloadingMon0 = False
         self.connection = None
         self.LASTTRY = 0
@@ -35,27 +36,63 @@ class Fix_BRCMF(plugins.Plugin):
     # search syslog events for the brcmf channel fail, and reset when it shows up
     # apparently this only gets messages from bettercap going to syslog, not from syslog
     def on_bcap_sys_log(self, agent, event):
-        try:
-            if re.search('brcmf_cfg80211_nexmon_set_channel.*?Set Channel failed', event['data']['Message']):
-                logging.info("[FixBRCMF]SYSLOG MATCH: %s" % event['data']['Message'])
-                logging.info("[FixBRCMF]**** Should trigger a reload of the mon0 device")
-                self._tryTurningItOffAndOnAgain(agent)                
-        except Exception as err:
-            logging.error("[FixBRCMF]SYSLOG FixBRCMF fail: %s" % err)            
+        if re.search('wifi error while hopping to channel', event['data']['Message']):
+            logging.info("[FixBRCMF]SYSLOG MATCH: %s" % event['data']['Message'])
+            logging.info("[FixBRCMF]**** restarting wifi.recon")
+            try:
+                result = agent.run("wifi.recon off; wifi.recon on")
+                if result["success"]:
+                    logging.info("[FixBRCMF] wifi.recon flip: success!")
+                    if hasattr(agent, 'view'):
+                        display = agent.view()
+                        if display: display.update(force=True, new_data={"status": "Wifi recon flipped!",
+                                                                         "face":faces.COOL})
+                    else: print("Wifi recon flipped")
+                else:
+                    logging.warning("[FixBRCMF] wifi.recon flip: FAILED: %s" % repr(result))
+            except Exception as err:
+                logging.error("[FixBRCMF]SYSLOG wifi.recon flip fail: %s" % err)
 
     def on_epoch(self, agent, epoch, epoch_data):
         # don't check if we ran a reset recently
         if time.time() - self.LASTTRY > 180:
             # get last 10 lines
+            display = None
             last_lines = ''.join(list(TextIOWrapper(subprocess.Popen(['journalctl','-n10','-k', '--since', '-3m'],
                                                                      stdout=subprocess.PIPE).stdout))[-10:])
+            other_last_lines = ''.join(list(TextIOWrapper(subprocess.Popen(['journalctl','-n10', '--since', '-3m'],
+                                                                           stdout=subprocess.PIPE).stdout))[-10:])
             if len(self.pattern.findall(last_lines)) >= 5:
                 logging.info("[FixBRCMF]**** Should trigger a reload of the mon0 device")
-                display = agent.view()
-                display.set('status', 'Blind-Bug detected. Restarting.')
-                display.update(force=True)
+                if hasattr(agent, 'view'):
+                    display = agent.view()
+                    display.set('status', 'Blind-Bug detected. Restarting.')
+                    display.update(force=True)
                 logging.info('[FixBRCMF] Blind-Bug detected. Restarting.')
                 self._tryTurningItOffAndOnAgain(agent)
+            elif len(self.pattern2.findall(other_last_lines)) >= 5:
+                if hasattr(agent, 'view'):
+                    display = agent.view()
+                    display.set('status', 'Wifi channel stuck. Restarting recon.')
+                    display.update(force=True)
+                logging.info('[FixBRCMF] Wifi channel stuck. Restarting recon.')
+
+                try:
+                    result = agent.run("wifi.recon off; wifi.recon on")
+                    if result["success"]:
+                        logging.info("[FixBRCMF] wifi.recon flip: success!")
+                        if display: display.update(force=True, new_data={"status": "Wifi recon flipped!",
+                                                                         "face":faces.COOL})
+                        else: print("Wifi recon flipped")
+                    else:
+                        logging.warning("[FixBRCMF] wifi.recon off: FAILED: %s" % repr(result))
+
+                except Exception as err:
+                    logging.error("[FixBRCMF wifi.recon off] %s" % repr(err))
+
+            else:
+                print("logs look good")
+
 
 
     def _tryTurningItOffAndOnAgain(self, connection):
