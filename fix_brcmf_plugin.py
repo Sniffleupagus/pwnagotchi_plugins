@@ -62,7 +62,7 @@ class Fix_BRCMF(plugins.Plugin):
                                                                      stdout=subprocess.PIPE).stdout))[-10:])
             other_last_lines = ''.join(list(TextIOWrapper(subprocess.Popen(['journalctl','-n10', '--since', '-3m'],
                                                                            stdout=subprocess.PIPE).stdout))[-10:])
-            if len(self.pattern.findall(last_lines)) >= 5:
+            if len(self.pattern.findall(last_lines)) >= 3:
                 logging.info("[FixBRCMF]**** Should trigger a reload of the mon0 device")
                 if hasattr(agent, 'view'):
                     display = agent.view()
@@ -140,7 +140,7 @@ class Fix_BRCMF(plugins.Plugin):
                     #self.isReloadingMon0 = False
                     #return
             except Exception as err:
-                logging.error("[FixBRCMF ip link show mon0]: %s" % repr(cmd_output))
+                logging.error("[FixBRCMF ip link show mon0]: %s" % repr(err))
 
 
             try:
@@ -259,5 +259,6 @@ if __name__ == "__main__":
 
     agent = Client('localhost', port=8081, username="pwnagotchi", password="pwnagotchi");                    
 
-    fb.on_epoch(agent, event, None)
+    #fb.on_epoch(agent, event, None)
+    fb._tryTurningItOffAndOnAgain(agent)
     
