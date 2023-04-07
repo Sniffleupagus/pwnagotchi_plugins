@@ -50,7 +50,13 @@ class BLEMon(plugins.Plugin):
     # called to setup the ui elements
     def on_ui_setup(self, ui):
         # add custom UI elements
-        ui.add_element('blemon_count', LabeledValue(color=BLACK, label='BLE', value='0/0', position=(0, 17),
+        if "position" in self.options:
+            pos = self.options['position'].split(',')
+            pos = [int(x.strip()) for x in pos]
+        else:
+            pos = (0,15)
+
+        ui.add_element('blemon_count', LabeledValue(color=BLACK, label='BLE', value='0/0', position=pos,
                                            label_font=fonts.Bold, text_font=fonts.Medium))
         
     # called when the ui is updated
