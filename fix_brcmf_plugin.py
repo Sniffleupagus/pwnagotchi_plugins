@@ -37,7 +37,24 @@ class Fix_BRCMF(plugins.Plugin):
             cmd_output = subprocess.check_output("ip link show mon0", shell=True)
             logging.info("[FixBRCMF ip link show mon0]: %s" % repr(cmd_output))
             if ",UP," in str(cmd_output):
-                logging.info("mon0 is up. Skip startup reset");
+                logging.info("mon0 is up.");
+
+            last_lines = ''.join(list(TextIOWrapper(subprocess.Popen(['journalctl','-n10','-k'],
+                                                                         stdout=subprocess.PIPE).stdout))[-10:])
+            if len(self.pattern.findall(last_lines)) >= 3:
+                logging.info("[FixBRCMF]**** Should trigger a reload of the mon0 device")
+                if hasattr(agent, 'view'):
+                    display = agent.view()
+                    display.set('status', 'Blind-Bug detected. Restarting.')
+                    display.update(force=True)
+                logging.info('[FixBRCMF] Blind-Bug detected. Restarting.')
+                try:    
+                    self._tryTurningItOffAndOnAgain(agent)
+                except Exception as err:
+                    logging.warning("[FixBRCMF turnOffAndfOn] %s" % repr(err))
+            else:
+                logging.info("[FixBRCMF] Logs look good, too")
+                
         except Exception as err:
             logging.error("[FixBRCMF ip link show mon0]: %s" % repr(err))
             try:
@@ -68,12 +85,13 @@ class Fix_BRCMF(plugins.Plugin):
 
     def on_epoch(self, agent, epoch, epoch_data):
         # don't check if we ran a reset recently
+        logging.info("[FixBRCMF]**** epoch")
         if time.time() - self.LASTTRY > 180:
             # get last 10 lines
             display = None
-            last_lines = ''.join(list(TextIOWrapper(subprocess.Popen(['journalctl','-n10','-k', '--since', '-3m'],
+            last_lines = ''.join(list(TextIOWrapper(subprocess.Popen(['journalctl','-n10','-k'],
                                                                      stdout=subprocess.PIPE).stdout))[-10:])
-            other_last_lines = ''.join(list(TextIOWrapper(subprocess.Popen(['journalctl','-n10', '--since', '-3m'],
+            other_last_lines = ''.join(list(TextIOWrapper(subprocess.Popen(['journalctl','-n10'],
                                                                            stdout=subprocess.PIPE).stdout))[-10:])
             if len(self.pattern.findall(last_lines)) >= 3:
                 logging.info("[FixBRCMF]**** Should trigger a reload of the mon0 device")
@@ -248,7 +266,8 @@ class Fix_BRCMF(plugins.Plugin):
             
             logging.info("[FixBRCMF] renable recon")
             try:
-                result = connection.run("set wifi.interface mon0; wifi.clear; wifi.recon on")
+                result = connection.run("wifi.clear; wifi.recon on")
+                #result = connection.run("set wifi.interface mon0; wifi.clear; wifi.recon on")
                 if result["success"]:
                     if display: display.update(force=True, new_data={"status": "I can see again! (probably)",
                                                                      "face":faces.HAPPY})
