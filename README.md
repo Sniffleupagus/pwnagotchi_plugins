@@ -41,7 +41,7 @@ on a Rpi4, Rpi3, and Rpi0W.
 
 # blemon_plugin.py
 Counts BLE devices and max # seen at a time in the upper left under the line. Gets BLE info from bettercap events.
-<b>REQUIRES</b> modified <a href="https://github.com/Sniffleupagus/pwnagotchi-snflpgs/blob/master/pwnagotchi/agent.py">agent.py</a>
+<b>REQUIRES</b> modified <a href="https://github.com/Sniffleupagus/pwnagotchi-snflpgs/bl'ob/master/pwnagotchi/agent.py">agent.py</a>
 from my fork of the evilsocket repository.<p>
 
 The modified agent.py calls plugins.on("bcap_{event_name}", blah blah, blah), so all the plugins can
@@ -51,22 +51,23 @@ bettercap, or removed from the config so they don't keep coming back.<p>
 Conflicts with bt-tether (because bettercap takes over the bluetooth device to scan). Enable and disable them as
 needed in the plugins tab of the webUI, without having to restart pwnagotchi.
 
+# enable_assoc.py and enable_deauth.py
+
+When loaded or unloaded, these plugins turn on or off personality associate or deauth. Change behavior on the fly, without
+restarting. Go to the plugins tab on webUI, and turn them on and off. No configuration. They change <code>agent._config['personality']['associate|deauth']</code> directly, so these plugins will affect "save and reboot" from web_cfg.<p>
+
 # gps_more.py
 
 Modified from stock gps.py. From loading, it will update GPS on epoch until it gets a fix, then just update for
-handshakes. That way you can see that it is working before a handshake happens. Optionally saves gps locks to a file
-specified in options.<p>
+handshakes. That way you can see that it is working before a handshake happens. Optionally saves all gps locations to a file (epoch and handshakes), like a breadcrumb trail.<p>
 
-
-<code>
-main.plugins.gps_more.enabled = true
+<code>main.plugins.gps_more.enabled = true
 main.plugins.gps_more.device = "/dev/ttyACM0"
 main.plugins.gps_more.speed = "9600"
 main.plugins.gps_more.keepGPSOn = true               # don't send "gps off", so bettercap keeps lock
-main.plugins.gps_more.save_file = "/root/gpstracks/%Y/gps_more_%Y%m%d.gps.json"
-</code>
+main.plugins.gps_more.save_file = "/root/gpstracks/%Y/gps_more_%Y%m%d.gps.json"</code><p>
 
-save_file is processed by <code>strftime()</code>, so you can have a file per day, month, whatever. Also saves fixed with handshake
+<code>save_file</code> is processed by <code>strftime()</code>, so you can have a file per day, month, whatever. Also saves fixed with handshake
 files like the original.
 
 
@@ -76,8 +77,6 @@ Modified from the stock led.py plugin. It flashes morse code on the LED in respo
 work with the stock agent.py, but it will have more to blink about if you use the modified version. Messages
 are generated in the code right now, but not configurable as config options yet. 
 
-<code>
-main.plugins.morse_code.enabled = true
+<code>main.plugins.morse_code.enabled = true
 main.plugins.morse_code.led = 0
-main.plugins.morse_code.delay = 200
-</code>
+main.plugins.morse_code.delay = 200</code>
