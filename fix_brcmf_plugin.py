@@ -28,9 +28,22 @@ class Fix_BRCMF(plugins.Plugin):
         """
         Gets called when the plugin gets loaded
         """
+
         logging.info("[FixBRCMF] plugin loaded.")
 
 
+    def on_ready(self, agent):
+        try:
+            cmd_output = subprocess.check_output("ip link show mon0", shell=True)
+            logging.info("[FixBRCMF ip link show mon0]: %s" % repr(cmd_output))
+            if ",UP," in str(cmd_output):
+                logging.info("mon0 is up. Skip startup reset");
+        except Exception as err:
+            logging.error("[FixBRCMF ip link show mon0]: %s" % repr(err))
+            try:
+                self._tryTurningItOffAndOnAgain(agent)
+            except Exception as err:
+                logging.error("[FixBRCMF OffNOn]: %s" % repr(err))
 
     # bettercap sys_log event
     # search syslog events for the brcmf channel fail, and reset when it shows up
