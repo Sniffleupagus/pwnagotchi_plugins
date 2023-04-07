@@ -41,7 +41,6 @@ class Do_Deauth(plugins.Plugin):
         self._agent = agent
         logging.info("[Enable_Deauth] ready: enabled deauth")
 
-# called when the agent is deauthenticating a client station from an AP
     def on_deauthentication(self, agent, access_point, client_station):
         self._count += 1
         pass
