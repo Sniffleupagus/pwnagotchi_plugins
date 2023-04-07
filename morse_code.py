@@ -53,7 +53,7 @@ class MorseCode(plugins.Plugin):
     def _blink(self, msg):
         if len(msg) > 0:
             pattern = self._convert_code(msg)
-            logging.debug("[MORSE] '%s' -> '%s'" % (msg, pattern))
+            logging.info("[MORSE] '%s' -> '%s'" % (msg, pattern))
 
             # blank led for one measure ahead of message
             self._led(1)
@@ -90,32 +90,38 @@ class MorseCode(plugins.Plugin):
         if not self._is_busy:
             self._message = message
             self._event.set()
-            logging.info("[Morse] message '%s' set", message)
+            logging.debug("[Morse] message '%s' set", message)
         else:
-            logging.info("[Morse] skipping '%s' because the worker is busy", message)
+            logging.debug("[Morse] skipping '%s' because the worker is busy", message)
 
     def _led(self, on):
         with open(self._led_file, 'wt') as fp:
             fp.write(str(on))
 
     def _worker(self):
-        while True:
+        while self._keep_going:
             self._event.wait()
             self._event.clear()
+
+            if self._message is "QUITXXXQUIT":
+                break
+
             self._is_busy = True
+            logging.info("Worker loop")
 
             try:
                 self._blink(self._message)
+                logging.debug("[Morse] blinked")
             except Exception as e:
-                logging.exception("[Morse] error while blinking")
+                logging.warn("[Morse] error while blinking")
 
             finally:
                 self._is_busy = False
 
-    
     def __init__(self):
         logging.debug("[Morse] Code plugin initializing")
         self._is_busy = False
+        self._keep_going = True
         self._event = Event()
         self._message = None
         self._led_file = "/sys/class/leds/led0/brightness"
@@ -131,17 +137,28 @@ class MorseCode(plugins.Plugin):
 
     # called when the plugin is loaded
     def on_loaded(self):
-        logging.info("[Morse] loaded" % self.options)
+        self._is_busy = False
+
+        logging.debug("[Morse] loaded %s" % repr(self.options))
+
+        for k,v in {'led': 0, 'delay' : 200}.items():
+            if k not in self.options:
+                self.options[k] = v
+
 
         self._led_file = "/sys/class/leds/led%d/brightness" % self.options['led']
         self._delay = int(self.options['delay'])
 
-        logging.info("[led] plugin loaded for %s" % self._led_file)
-        self._queue_message('loaded')
+        self._keep_going = True
         _thread.start_new_thread(self._worker, ())
+        self._queue_message('loaded')
+        logging.info("[Morse Code] plugin loaded for %s" % self._led_file)
 
     # called before the plugin is unloaded
     def on_unload(self, ui):
+        self._keep_going = False
+        self._event.set()
+
         pass
 
     # called when there's internet connectivity
