@@ -48,7 +48,7 @@ class Do_Assoc(plugins.Plugin):
 
     # called to setup the ui elements
     def on_ui_setup(self, ui):
-        logging.info("ADDOC setting up ui");
+        logging.info("ASSOC setting up ui");
         # add custom UI elements
         if "position" in self.options:
             pos = self.options['position'].split(',')
