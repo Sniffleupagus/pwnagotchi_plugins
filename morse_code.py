@@ -55,20 +55,24 @@ class MorseCode(plugins.Plugin):
             pattern = self._convert_code(msg)
             logging.info("[MORSE] '%s' -> '%s'" % (msg, pattern))
 
-            # blank led for one measure ahead of message
-            self._led(1)
-            time.sleep(7 * self._delay / 1000.0)
+            # Attention signal
+            for _ in range(3):
+                self._led(1)
+                time.sleep(0.5 * self._delay / 1000.0)
+                self._led(0)
+                time.sleep(0.5 * self._delay / 1000.0)
+            time.sleep(4 * self._delay / 1000.0)
 
             for c in pattern:
                 if c == '.':
-                    self._led(0)
-                    time.sleep(self._delay / 1000.0)
                     self._led(1)
+                    time.sleep(self._delay / 1000.0)
+                    self._led(0)
                     time.sleep(self._delay / 1000.0)
                 elif c == '-':
-                    self._led(0)
-                    time.sleep(3 * self._delay / 1000.0)
                     self._led(1)
+                    time.sleep(3 * self._delay / 1000.0)
+                    self._led(0)
                     time.sleep(self._delay / 1000.0)
                 elif c == ' ':
                     time.sleep(2 * self._delay / 1000.0)
@@ -76,11 +80,13 @@ class MorseCode(plugins.Plugin):
                     # unexpected character... skip it
                     pass
 
-            # blank period to end message
-            self._led(1)
-            time.sleep(7 * self._delay / 1000.0)
-            # and back on
+            # blank at end message
             self._led(0)
+            time.sleep(7 * self._delay / 1000.0)
+
+            if self.options['leaveOn']:
+                # and back on
+                self._led(1)
 
     # thread stuff copied from plugins/default/led.py
 
@@ -95,6 +101,14 @@ class MorseCode(plugins.Plugin):
             logging.debug("[Morse] skipping '%s' because the worker is busy", message)
 
     def _led(self, on):
+        if on is "on": on = 1
+        elif on is "off": on = 0
+
+        # invert if LED brightness=1 is off, 0 is on
+        if self.options['invert']:
+            if on : on = 0
+            else: on = 1
+
         with open(self._led_file, 'wt') as fp:
             fp.write(str(on))
 
@@ -107,7 +121,7 @@ class MorseCode(plugins.Plugin):
                 break
 
             self._is_busy = True
-            logging.info("Worker loop")
+            logging.debug("Worker loop")
 
             try:
                 self._blink(self._message)
@@ -137,22 +151,25 @@ class MorseCode(plugins.Plugin):
 
     # called when the plugin is loaded
     def on_loaded(self):
-        self._is_busy = False
+        try:
+            self._is_busy = False
 
-        logging.debug("[Morse] loaded %s" % repr(self.options))
+            logging.info("[Morse] loaded %s" % repr(self.options))
 
-        for k,v in {'led': 0, 'delay' : 200}.items():
-            if k not in self.options:
-                self.options[k] = v
+            for k,v in {'led': 0, 'delay' : 200, 'invert': True, 'leaveOn': False}.items():
+                if k not in self.options:
+                    self.options[k] = v
 
 
-        self._led_file = "/sys/class/leds/led%d/brightness" % self.options['led']
-        self._delay = int(self.options['delay'])
+            self._led_file = "/sys/class/leds/led%d/brightness" % int(self.options['led'])
+            self._delay = int(self.options['delay'])
 
-        self._keep_going = True
-        _thread.start_new_thread(self._worker, ())
-        self._queue_message('loaded')
-        logging.info("[Morse Code] plugin loaded for %s" % self._led_file)
+            self._keep_going = True
+            _thread.start_new_thread(self._worker, ())
+            self._queue_message('loaded')
+            logging.info("[Morse Code] plugin loaded for %s" % self._led_file)
+        except Exception as err:
+            logging.warn("[Morse Code] loading: %s" % repr(err))
 
     # called before the plugin is unloaded
     def on_unload(self, ui):
