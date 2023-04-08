@@ -23,6 +23,11 @@ Each epoch, it will make up to 3 attempts to reload the module. If it succeeds, 
 wait at least 3 minutes for the lines in the logfile that already triggered it will have
 moved on.<p>
 
+Epoch detect/fix is not 100%. If you notice your pwnagotchi is blind, you can disable and
+enable this plugin in the web ui, and it will check for mon0, and read the syslog and try
+another reset if either of those looks wrong. [REQUIRES <a href="https://github.com/Sniffleupagus/pwnagotchi-snflpgs/commit/70bffe52001cc951814219a3f791008428ac707e">changes to agent.py and bettercap.py</a> to
+give plugins more access to bettercap events]<p>
+
 fix_brcmfmac.py can also be run on the command line if the plugin isn't getting it.<p>
 <code>% python3 ./fix_brcmfmac.py
   Performing brcmfmac reload and restart mon0...
@@ -41,7 +46,7 @@ on a Rpi4, Rpi3, and Rpi0W.
 
 # blemon_plugin.py
 Counts BLE devices and max # seen at a time in the upper left under the line. Gets BLE info from bettercap events.
-<b>REQUIRES</b> modified <a href="https://github.com/Sniffleupagus/pwnagotchi-snflpgs/bl'ob/master/pwnagotchi/agent.py">agent.py</a>
+<b>REQUIRES</b> modified <a href="https://github.com/Sniffleupagus/pwnagotchi-snflpgs/blob/master/pwnagotchi/agent.py">agent.py</a>
 from my fork of the evilsocket repository.<p>
 
 The modified agent.py calls plugins.on("bcap_{event_name}", blah blah, blah), so all the plugins can
@@ -78,5 +83,7 @@ work with the stock agent.py, but it will have more to blink about if you use th
 are generated in the code right now, but not configurable as config options yet. 
 
 <code>main.plugins.morse_code.enabled = true
-main.plugins.morse_code.led = 0
-main.plugins.morse_code.delay = 200</code>
+main.plugins.morse_code.led = 0                     # 0 is green light. 1 is the stupid bright red light on Pi3&4
+main.plugins.morse_code.delay = 200</code>          # length of a dot in milliseconds. other timing is relative
+main.plugins.morse_code.invert = True               # if 1 is off and 0 is on, like Rpi0w
+main.plugins.morese_code.leaveOn = False            # leave light on (off if false) at end of message
