@@ -85,6 +85,7 @@ class Fix_BRCMF(plugins.Plugin):
 
     def on_epoch(self, agent, epoch, epoch_data):
         # don't check if we ran a reset recently
+        logging.info("[FixBRCMF]**** epoch")
         if time.time() - self.LASTTRY > 180:
             # get last 10 lines
             display = None
