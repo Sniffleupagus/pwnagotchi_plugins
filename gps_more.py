@@ -102,11 +102,11 @@ class GPS_More(plugins.Plugin):
                         else:
                             mode = "w+t"
 
-                            try:
-                                with open(save_file, mode) as fp:
-                                    fp.write(json.dumps(self.coordinates)+"\n")
-                            except OSError as err:
-                                logging.info("%s open %s failed: %s" % (context, save_file, repr(err)))
+                        try:
+                            with open(save_file, mode) as fp:
+                                fp.write(json.dumps(self.coordinates)+"\n")
+                        except OSError as err:
+                            logging.info("%s open %s failed: %s" % (context, save_file, repr(err)))
 
             return info
         except Exception as err:
@@ -115,19 +115,19 @@ class GPS_More(plugins.Plugin):
 
     def on_handshake(self, agent, filename, access_point, client_station):
         if self.running:
-            info = self._update_coordinates(agent)
+            try:
+                info = self._update_coordinates(agent)
 
-            gps_filename = filename.replace(".pcap", ".gps.json")
+                gps_filename = filename.replace(".pcap", ".gps.json")
 
-            if self.coordinates and all([
-                # avoid 0.000... measurements
-                self.coordinates["Latitude"], self.coordinates["Longitude"]
-            ]):
-                logging.info(f"saving GPS to {gps_filename} ({self.coordinates})")
-                with open(gps_filename, "w+t") as fp:
-                    json.dump(self.coordinates, fp)
-            else:
-                logging.info("not saving GPS. Couldn't find location.")
+                if self.coordinates and all([self.coordinates["Latitude"], self.coordinates["Longitude"]]):
+                    logging.info(f"saving GPS to {gps_filename} ({self.coordinates})")
+                    with open(gps_filename, "w+t") as fp:
+                        json.dump(self.coordinates, fp)
+                else:
+                    logging.info("not saving GPS. Couldn't find location.")
+            except Exception as err:
+                logging.warn("[gps_more handshake] %s" % repr(err))
 
     def on_epoch(self, agent, epoch, epoch_data):
         # update during epochs until there is a good lock
@@ -157,10 +157,12 @@ class GPS_More(plugins.Plugin):
             alt_pos = (pos[0] + 5, pos[1] + (2 * line_spacing))
         except Exception:
             # Set default value based on display type
-            if ui.is_waveshare_v2():
-                lat_pos = (127, 74)
-                lon_pos = (122, 84)
-                alt_pos = (127, 94)
+            if ui.is_waveshare_v2() or ui.is_waveshare_v3():
+                logging.info("[GPS MORE] IS THIS KIND OF DISPLAY")
+
+                lat_pos = (127, 78)
+                lon_pos = (122, 87)
+                alt_pos = (12jkj7, 97)
             elif ui.is_waveshare_v1():
                 lat_pos = (130, 70)
                 lon_pos = (125, 80)
@@ -231,6 +233,7 @@ class GPS_More(plugins.Plugin):
                 ui.remove_element('latitude')
                 ui.remove_element('longitude')
                 ui.remove_element('altitude')
+                logging.info("gps_more unloaded")
             except Exception:
                 logging.info("gps_more unload ui issues")
 
