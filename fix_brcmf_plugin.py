@@ -47,7 +47,7 @@ class Fix_BRCMF(plugins.Plugin):
                     display = agent.view()
                     display.set('status', 'Blind-Bug detected. Restarting.')
                     display.update(force=True)
-                logging.info('[FixBRCMF] Blind-Bug detected. Restarting.')
+                logging.info('[FixBRCMF] Blind-Bug detected. Restarting.\n%s' % repr(last_lines))
                 try:    
                     self._tryTurningItOffAndOnAgain(agent)
                 except Exception as err:
@@ -227,7 +227,7 @@ class Fix_BRCMF(plugins.Plugin):
                         logging.info("[FixBRCMF] reloaded brcmfmac")
                         time.sleep(8 + tries) # give it some time for wlan device to stabilize, or whatever
 
-                        # success! now make the mod0
+                        # success! now make the mon0
                         try:
                             cmd_output = subprocess.check_output("sudo iw phy \"$(iw phy | head -1 | cut -d' ' -f2)\" interface add mon0 type monitor && sudo ifconfig mon0 up", shell=True)
                             if not display: print("mon0 recreated on attempt #%d" % tries)
