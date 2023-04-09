@@ -29,7 +29,7 @@ class BLEMon(plugins.Plugin):
     def on_loaded(self):
         if 'face' not in self.options:
             self.options['face'] = "(B+B)"
-        logging.warning("BLEMon loaded! with options = " % self.options)
+        logging.warning("BLEMon loaded! with options = %s" % repr(self.options))
 
     # called before the plugin is unloaded
     def on_unload(self, ui):
@@ -39,6 +39,7 @@ class BLEMon(plugins.Plugin):
                 logging.info("[BLEMON] Stopping ble.recon")
                 self.agent.run('ble.recon off; ble.clear')
                 self.agent = None
+                ui.remove_element('blemon_count')
             except Exception as err:
                 logging.warning("[BLEMON] unload err: %s" % repr(err))
         pass
@@ -200,7 +201,7 @@ class BLEMon(plugins.Plugin):
                 if mac:
                     # enqueue an enum. run one per epoch
                     # if error, then repeat next time, maybe?
-                    res = self.agent.run('ble.enum %s' % mac)
+                    #res = self.agent.run('ble.enum %s' % mac)
                     logging.info("[BLEMon] enum %s: %s" % (mac, repr(res)))
             else:
                 display.set('status', "Blue buddy %s" % name)
