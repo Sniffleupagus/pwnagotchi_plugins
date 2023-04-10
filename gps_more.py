@@ -162,7 +162,7 @@ class GPS_More(plugins.Plugin):
 
                 lat_pos = (127, 78)
                 lon_pos = (122, 87)
-                alt_pos = (12jkj7, 97)
+                alt_pos = (127, 97)
             elif ui.is_waveshare_v1():
                 lat_pos = (130, 70)
                 lon_pos = (125, 80)
