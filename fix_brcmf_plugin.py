@@ -139,10 +139,10 @@ class Fix_BRCMF(plugins.Plugin):
                 logging.info(message)
 
             if ui: ui.update(force=force, new_data=displayData)
-            elif "status" in displayData:
+            elif displayData and "status" in displayData:
                 print(displayData["status"])
             else:
-                print("[{level}] {message}")
+                print("[%s] %s" % (level, message))
         except Exception as err:
             logging.error("[logPrintView] ERROR %s" % repr(err))
 
