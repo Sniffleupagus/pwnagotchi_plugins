@@ -116,7 +116,7 @@ class GPS_More(plugins.Plugin):
     def on_handshake(self, agent, filename, access_point, client_station):
         if self.running:
             try:
-                info = self._update_coordinates(agent)
+                #info = self._update_coordinates(agent)
 
                 gps_filename = filename.replace(".pcap", ".gps.json")
 
@@ -137,9 +137,17 @@ class GPS_More(plugins.Plugin):
         ]):
             info = self._update_coordinates(agent)
             logging.info("[gps_more] epoch %s" % repr(info['gps']))
-            
 
-                
+    def on_bcap_gps_new(self, agent, event):
+        try:
+            coords = event['data']
+            if coords and all([
+                    coords["Latitude"], coords["Longitude"]
+            ]):
+                self.coordinates = coords
+        except Exception as err:
+            logging.warning("[gps more] gps.new err: %s, %s" % (repr(event), repr(err)))
+            
     def on_ui_setup(self, ui):
         try:
             # Configure line_spacing
@@ -162,7 +170,7 @@ class GPS_More(plugins.Plugin):
 
                 lat_pos = (127, 78)
                 lon_pos = (122, 87)
-                alt_pos = (12jkj7, 97)
+                alt_pos = (127, 97)
             elif ui.is_waveshare_v1():
                 lat_pos = (130, 70)
                 lon_pos = (125, 80)
@@ -258,3 +266,14 @@ class GPS_More(plugins.Plugin):
             ui.set("longitude", f"{self.coordinates['Longitude']:.4f} ")
             ui.set("altitude", f"{self.coordinates['Altitude']:.1f}m ")
             
+if __name__ == "__main__":
+    gps = GPS_More()
+
+    from pwnagotchi.bettercap import Client
+    
+    agent = Client('localhost', port=8081, username="pwnagotchi", password="pwnagotchi");                    
+
+    sess = agent.session()
+
+    print(repr(sess['gps']))
+    

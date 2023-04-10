@@ -53,10 +53,10 @@ class Do_Deauth(plugins.Plugin):
                 pos = self.options['position'].split(',')
                 pos = [int(x.strip()) for x in pos]
             else:
-                pos = (0,35)
+                pos = (0,36)
             
             ui.add_element('deauth_count', LabeledValue(color=BLACK, label='D', value='0', position=pos,
-                                                        label_font=fonts.Bold, text_font=fonts.Medium))
+                                                        label_font=fonts.BoldSmall, text_font=fonts.Small))
         except Exception as err:
             logging.info("enable deauth ui error: %s" % repr(err))
 

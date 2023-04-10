@@ -54,10 +54,10 @@ class Do_Assoc(plugins.Plugin):
             pos = self.options['position'].split(',')
             pos = [int(x.strip()) for x in pos]
         else:
-            pos = (0,24)
+            pos = (0,29)
             
         ui.add_element('assoc_count', LabeledValue(color=BLACK, label='A', value='0', position=pos,
-                                           label_font=fonts.Bold, text_font=fonts.Medium))
+                                                   label_font=fonts.BoldSmall, text_font=fonts.Small))
 
         # called when the ui is updated
     def on_ui_update(self, ui):
