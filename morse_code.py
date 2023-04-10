@@ -174,7 +174,7 @@ class MorseCode(plugins.Plugin):
     # called before the plugin is unloaded
     def on_unload(self, ui):
         self._keep_going = False
-        self._event.set()
+        self._queue_message('unload')
 
         pass
 
