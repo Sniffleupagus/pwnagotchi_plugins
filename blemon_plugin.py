@@ -201,7 +201,7 @@ class BLEMon(plugins.Plugin):
                 if mac:
                     # enqueue an enum. run one per epoch
                     # if error, then repeat next time, maybe?
-                    #res = self.agent.run('ble.enum %s' % mac)
+                    res = self.agent.run('ble.enum %s' % mac)
                     logging.info("[BLEMon] enum %s: %s" % (mac, repr(res)))
             else:
                 display.set('status', "Blue buddy %s" % name)
