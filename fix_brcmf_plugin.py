@@ -201,7 +201,7 @@ class Fix_BRCMF(plugins.Plugin):
 
             try:
                 cmd_output = subprocess.check_output("sudo ifconfig mon0 down && sudo iw dev mon0 del", shell=True)
-                self.logPrintView("info", "[FixBRCMF] mon0 down and deleted: %s", cmd_output,
+                self.logPrintView("info", "[FixBRCMF] mon0 down and deleted: %s" % cmd_output,
                                   display, {"status": "mon0 d-d-d-down!", "face":faces.BORED})
             except Exception as nope:
                 logging.error("[FixBRCMF delete mon0] %s" % nope)
@@ -240,6 +240,7 @@ class Fix_BRCMF(plugins.Plugin):
                                 result = connection.run("set wifi.interface mon0")
                                 if "success" in result:
                                     logging.info("[FixBRCMF set wifi.interface mon0] worked: %s" % repr(result))
+                                    time.sleep(5)
                                     # stop looping and get back to recon
                                     break
                                 else:
