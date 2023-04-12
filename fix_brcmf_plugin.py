@@ -243,7 +243,7 @@ class Fix_BRCMF(plugins.Plugin):
 
                         self.logPrintView("info", "[FixBRCMF] reloaded brcmfmac")
                         self._status = "rl"
-                        time.sleep(8 + 4 * tries) # give it some time for wlan device to stabilize, or whatever
+                        time.sleep(10 + 4 * tries) # give it some time for wlan device to stabilize, or whatever
 
                         # success! now make the mon0
                         try:
@@ -266,7 +266,7 @@ class Fix_BRCMF(plugins.Plugin):
                             except Exception as err:
                                 logging.info("[FixBRCMF set wifi.interface mon0] except: %s" % (repr(result), repr(err)))
                         except Exception as cerr: # 
-                            if not display: print("failed loading mon0 attempt #%d: %s", (tries, repr(cerr)))
+                            if not display: print("failed loading mon0 attempt #%d: %s" % (tries, repr(cerr)))
                     except Exception as err: # from modprobe
                         if not display: print("Failed reloading brcmfmac")
                         logging.error("[FixBRCMF] Failed reloading brcmfmac %s" % repr(err))
