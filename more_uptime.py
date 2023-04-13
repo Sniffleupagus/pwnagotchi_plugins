@@ -57,7 +57,7 @@ class More_Uptime(plugins.Plugin):
                 pos = self.options['position'].split(',')
                 pos = [int(x.strip()) for x in pos]
             else:
-                pos = (ui.width()-58, 14)
+                pos = (ui.width()-58, 12)
             
             ui.add_element('more_uptime', Text(color=BLACK, value='up --:--', position=pos, font=fonts.Small))
         except Exception as err:
@@ -71,18 +71,19 @@ class More_Uptime(plugins.Plugin):
         try:
             if time.time() > self._next:
                 self._next = int(time.time()) + 3
-                self._state = (self._state + 1) % 3
-                if self._state == 0:
+                self._state = (self._state + 1) % 2
+                uptimes = open('/proc/uptime').read().split()
+                if self._state == 2:
                     # system uptime
-                    uptimes = open('/proc/uptime').read().split()
                     res = "UP " + (utils.secs_to_hhmmss(float(uptimes[0])))
                 elif self._state == 1:
                     # get time since pwnagotchi process started
                     process_stats = open('/proc/self/stat').read().split()
-                    res = "PR " + utils.secs_to_hhmmss(int(process_stats[21])/100)
+                    res = "PR " + utils.secs_to_hhmmss(float(uptimes[0]) - (int(process_stats[21])/self.HZ))
                 else:
                     # instance, since plugin loaded
                     res = "IN " + (utils.secs_to_hhmmss(time.time() - self._start))
+                logging.debug("[more uptime] %s" % res)
                 ui.set('more_uptime', res)
         except Exception as err:
             logging.warn("[more uptime] ui update: %s" % repr(err))
