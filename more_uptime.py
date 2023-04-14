@@ -44,11 +44,6 @@ class More_Uptime(plugins.Plugin):
     def on_ready(self, agent):
         self._agent = agent
 
-    def on_association(self, agent, access_point):
-        self._count += 1
-        ui.set('assoc_count', "%d" % (self._count))
-        pass
-
     # called to setup the ui elements
     def on_ui_setup(self, ui):
         try:
