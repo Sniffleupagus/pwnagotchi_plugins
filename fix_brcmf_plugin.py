@@ -3,6 +3,7 @@ import logging
 import re
 import subprocess
 import time
+import random
 from io import TextIOWrapper
 from pwnagotchi import plugins
 
@@ -290,22 +291,23 @@ class Fix_BRCMF(plugins.Plugin):
                                                                  "face":faces.INTENSE})
                 else: print("And back on again...")
                 logging.info("[FixBRCMF] mon0 back up")
-                time.sleep(5) # give it a bit before restarting recon in bettercap
             else:
                 self.LASTTRY = time.time()
+
+            time.sleep(8 + tries * 2) # give it a bit before restarting recon in bettercap
             self.isReloadingMon0 = False
             
             logging.info("[FixBRCMF] re-enable recon")
             try:
                 result = connection.run("wifi.clear; wifi.recon on")
 
-                if "success" in result:
+                if "success" in result: # and result["success"] is True:
                     self._status = ""
                     if display: display.update(force=True, new_data={"status": "I can see again! (probably): %s" % repr(result),
                                                                      "brcmfmac_status": self._status,
                                                                      "face":faces.HAPPY})
                     else: print("I can see again")
-                    logging.info("[FixBRCMF] wifi.recon on")
+                    logging.info("[FixBRCMF] wifi.recon on %s" % repr(result))
                     self.LASTTRY = time.time() + 120 # 2 minute pause until next time.
                 else:
                     logging.error("[FixBRCMF] wifi.recon did not start up: %s" % repr(result))
