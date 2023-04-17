@@ -43,7 +43,6 @@ class Do_Assoc(plugins.Plugin):
 
     def on_association(self, agent, access_point):
         self._count += 1
-        ui.set('assoc_count', "%d" % (self._count))
         pass
 
     # called to setup the ui elements
