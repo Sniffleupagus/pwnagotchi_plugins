@@ -35,7 +35,7 @@ class More_Uptime(plugins.Plugin):
     # called before the plugin is unloaded
     def on_unload(self, ui):
         try:
-            ui.remove_element('more_uptime')
+            pass
         except Exception as err:
             logging.warn("[more uptime] %s" % repr(err))
         pass
@@ -47,17 +47,9 @@ class More_Uptime(plugins.Plugin):
     # called to setup the ui elements
     def on_ui_setup(self, ui):
         try:
-            # add custom UI elements
-            if "position" in self.options:
-                pos = self.options['position'].split(',')
-                pos = [int(x.strip()) for x in pos]
-            else:
-                pos = (ui.width()-58, 12)
-            
-            ui.add_element('more_uptime', Text(color=BLACK, value='up --:--', position=pos, font=fonts.Small))
+            pass
         except Exception as err:
             logging.warn("[more uptime] ui setup: %s" % repr(err))
-
 
     HZ = os.sysconf(os.sysconf_names['SC_CLK_TCK'])
 
@@ -68,17 +60,27 @@ class More_Uptime(plugins.Plugin):
                 self._next = int(time.time()) + 5
                 self._state = (self._state + 1) % 3
             uptimes = open('/proc/uptime').read().split()
+            label = "UP"
             if self._state == 2:
                 # system uptime
-                res = "UP " + (utils.secs_to_hhmmss(float(uptimes[0])))
+                res = (utils.secs_to_hhmmss(float(uptimes[0])))
+                label = "UP"
             elif self._state == 1:
                 # get time since pwnagotchi process started
                 process_stats = open('/proc/self/stat').read().split()
-                res = "PR " + utils.secs_to_hhmmss(float(uptimes[0]) - (int(process_stats[21])/self.HZ))
+                res = utils.secs_to_hhmmss(float(uptimes[0]) - (int(process_stats[21])/self.HZ))
+                label = "PR"
             else:
                 # instance, since plugin loaded
-                res = "IN " + (utils.secs_to_hhmmss(time.time() - self._start))
-            logging.debug("[more uptime] %s" % res)
-            ui.set('more_uptime', res)
+                res = (utils.secs_to_hhmmss(time.time() - self._start))
+                label = "IN"
+            logging.debug("[more uptime] %s: %s" % (label, res))
+            # hijack the stock uptime view, modify label as needed
+            try:
+                uiItems = ui._state._state
+                uiItems['uptime'].label = label
+            except Exception as err:
+                logging.warn("[more uptime] label hijack err: %s", (repr(err)))
+            ui.set('uptime', res)
         except Exception as err:
-            logging.warn("[more uptime] ui update: %s" % repr(err))
+            logging.warn("[more uptime] ui update: %s, %s" % (repr(err), repr(uiItems)))
