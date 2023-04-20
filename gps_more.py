@@ -42,6 +42,9 @@ class GPS_More(plugins.Plugin):
 
         device = None
         for d in [self.options['device'], "/dev/ttyACM0", "/dev/ttyACM1"]:
+            if ":" in d:
+                device = d
+                break
             if os.path.exists(d):
                 device = d
                 break
