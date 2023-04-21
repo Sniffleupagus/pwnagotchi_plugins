@@ -45,6 +45,7 @@ just keeps going! So far not configurable. Pauses have been tweaked to <i>seem t
 on a Rpi4, Rpi3, and Rpi0W.
 
 # blemon_plugin.py
+    
 Counts BLE devices and max # seen at a time in the upper left under the line. Gets BLE info from bettercap events.
 <b>REQUIRES</b> modified <a href="https://github.com/Sniffleupagus/pwnagotchi-snflpgs/blob/master/pwnagotchi/agent.py">agent.py</a>
 from my fork of the evilsocket repository.<p>
@@ -75,6 +76,15 @@ main.plugins.gps_more.save_file = "/root/gpstracks/%Y/gps_more_%Y%m%d.gps.json"<
 <code>save_file</code> is processed by <code>strftime()</code>, so you can have a file per day, month, whatever. Also saves fixed with handshake
 files like the original.
 
+# more_uptime.py
+ 
+  Display cycles between system UPtime (since reboot), PRocess uptime (since pwnagotchi started this time), and plugIN uptime (since this plugin was (re)loaded... like a really bad stopwatch). By default the uptime is underneath the line
+  below the existing uptime. Configuration options allow repositioning, or to override the stock UP display. Override seems to work on pi0w, but is unreliable on multiprocessors.
+  
+  <code>main.plugins.more_uptime.enables = true
+    main.plugins.more_uptime.override = false
+    main.plugins.more_uptime.position = "184,11"
+  </code>
 
 # morse_code.py
 
@@ -87,3 +97,23 @@ main.plugins.morse_code.led = 0                     # 0 is green light. 1 is the
 main.plugins.morse_code.delay = 200</code>          # length of a dot in milliseconds. other timing is relative
 main.plugins.morse_code.invert = True               # if 1 is off and 0 is on, like Rpi0w
 main.plugins.morese_code.leaveOn = False            # leave light on (off if false) at end of message
+
+# tweak_view.py
+  
+Edit the UI on the fly. It is a terrible user interface. You can break things. But move user interface elements
+  around, change fonts (among the available sizes), change labels. From webui plugins page, click on "tweak_view" to
+  bring up the <b>very rough</b> interface. Make changes carefully. Click "Update" at the bottom, and then go back and
+  look at what you've done.
+  
+  THERE IS A BUG where it sometimes turns all the fonts to "SMALL". Check the form to make sure everything isn't Small before submitting, or delete all the undesired mods on the result page, if you didn't. Its really annoying. The face looks funny in Small font.
+  
+  All of the changes/tweaks/mods are saved in /etc/pwnagotchi/tweak_view.json, formatted for easy deleting. Changes to the
+  file can be picked up by reloading the plugin (arguably a better interface, once you know the format, than changing
+  things through the webui).
+  
+  This directly changes the position, font, label and other settings that are otherwise hard coded in the init code for each kind of hardware. The changes are done in the data structures in memory (agent._view._state._state[blah].bleah), not to any files (other than tweak_view.json, duh). It might have concurrency issues sometimes. The plugin tried to restore the
+  original state when it is unloaded, but if it gets messed up, restarting pwnagotchi after disabling the plugin or
+  editing/deleting the "tweak_view.json" file will restore things back to normal.
+  
+  Changes can take a few screen updates to take effect, depending on when the values updated. This plugin does not trigger any updates itself.
+  
