@@ -117,7 +117,7 @@ class Tweak_View(plugins.Plugin):
                         res += '<li>%s.%s: <select id="%s" name="%s">\n' % (name, html.escape(key), tag, tag)
 
                         for l,f in self.myFonts.items():
-                            if val is f:
+                            if val == f:
                                 res += '  <option value="%s" selected>%s</option>' % (l, l)
                             else:
                                 res += '  <option value="%s">%s</option>' % (l, l)
@@ -169,7 +169,7 @@ class Tweak_View(plugins.Plugin):
                     if key[2] in dir(view._state._state[key[1]]):
                         oldval = eval("view._state._state[key[1]].%s" % key[2])
                         if "font" in key[2]:
-                            if oldval is not self.myFonts[val]:
+                            if oldval != self.myFonts[val]:
                                 oldf = "unknown %s" % repr(oldval)
                                 for n,f in self.myFonts.items():
                                     if f == oldval:   # found existing font
@@ -211,7 +211,7 @@ class Tweak_View(plugins.Plugin):
             if changed:
                 try:
                     with open(self._conf_file, "w") as f:
-                        f.write(json.dumps(self._tweaks))
+                        f.write(json.dumps(self._tweaks, indent=4))
                 except Exception as err:
                     ret += "<li><b>Unable to save settings:</b> %s" % repr(err)
 
