@@ -17,7 +17,7 @@ import pwnagotchi.ui.fonts as fonts
 
 
 class MorseCode(plugins.Plugin):
-    __author__ = 'evilsocket@gmail.com'
+    __author__ = 'sniffleupagus'
     __version__ = '1.0.0'
     __license__ = 'GPL3'
     __description__ = 'An example plugin for pwnagotchi that implements all the available callbacks.'
@@ -53,7 +53,7 @@ class MorseCode(plugins.Plugin):
     def _blink(self, msg):
         if len(msg) > 0:
             pattern = self._convert_code(msg)
-            logging.info("[MORSE] '%s' -> '%s'" % (msg, pattern))
+            self.logger.info("[MORSE] '%s' -> '%s'" % (msg, pattern))
 
             # Attention signal
             for _ in range(3):
@@ -96,9 +96,9 @@ class MorseCode(plugins.Plugin):
         if not self._is_busy:
             self._message = message
             self._event.set()
-            logging.debug("[Morse] message '%s' set", message)
+            self.logger.debug("[Morse] message '%s' set", message)
         else:
-            logging.debug("[Morse] skipping '%s' because the worker is busy", message)
+            self.logger.debug("[Morse] skipping '%s' because the worker is busy", message)
 
     def _led(self, on):
         if on is "on": on = 1
@@ -121,19 +121,20 @@ class MorseCode(plugins.Plugin):
                 break
 
             self._is_busy = True
-            logging.debug("Worker loop")
+            self.logger.debug("Worker loop")
 
             try:
                 self._blink(self._message)
-                logging.debug("[Morse] blinked")
+                self.logger.debug("[Morse] blinked")
             except Exception as e:
-                logging.warn("[Morse] error while blinking")
+                self.logger.warn("[Morse] error while blinking")
 
             finally:
                 self._is_busy = False
 
     def __init__(self):
-        logging.debug("[Morse] Code plugin initializing")
+        self.logger = logging.getLogger(__name__)
+        self.logger.debug("[Morse] Code plugin initializing")
         self._is_busy = False
         self._keep_going = True
         self._event = Event()
@@ -146,7 +147,7 @@ class MorseCode(plugins.Plugin):
     # must return a html page
     # IMPORTANT: If you use "POST"s, add a csrf-token (via csrf_token() and render_template_string)
     def on_webhook(self, path, request):
-        logging.info("[Morse] Web hook: %s" % repr(request))
+        self.logger.info("[Morse] Web hook: %s" % repr(request))
         return "<html><body>Woohoo!</body></html>"
 
     # called when the plugin is loaded
@@ -154,7 +155,7 @@ class MorseCode(plugins.Plugin):
         try:
             self._is_busy = False
 
-            logging.info("[Morse] loaded %s" % repr(self.options))
+            self.logger.info("[Morse] loaded %s" % repr(self.options))
 
             for k,v in {'led': 0, 'delay' : 200, 'invert': True, 'leaveOn': False}.items():
                 if k not in self.options:
@@ -167,9 +168,9 @@ class MorseCode(plugins.Plugin):
             self._keep_going = True
             _thread.start_new_thread(self._worker, ())
             self._queue_message('loaded')
-            logging.info("[Morse Code] plugin loaded for %s" % self._led_file)
+            self.logger.info("[Morse Code] plugin loaded for %s" % self._led_file)
         except Exception as err:
-            logging.warn("[Morse Code] loading: %s" % repr(err))
+            self.logger.warn("[Morse Code] loading: %s" % repr(err))
 
     # called before the plugin is unloaded
     def on_unload(self, ui):
