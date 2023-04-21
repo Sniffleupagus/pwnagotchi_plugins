@@ -38,6 +38,21 @@ class Tweak_View(plugins.Plugin):
         self._untweak = {}
         pass
 
+    def show_tweaks(self, request):
+        res = ""
+        res += '<form method=POST action="%s/delete_mods"><input id="csrf_token" name="csrf_token" type="hidden" value="{{ csrf_token() }}">\n' % request.path
+        res += '<ul>\n'
+
+        for tw, val in self._tweaks.items():
+            res += '<li><input type=checkbox name=delete_me id="%s" value="%s"> %s: %s\n' % (tw, tw, tw, repr(val))
+            if tw in self._untweak:
+                res += '(orig: %s)\n' % repr(self._untweak[tw])
+        res += '</ul>'
+        res += '<input type=submit value="Delete Selected Mods"></form>'
+
+        return res
+
+
     def dump_item(self, name, item, prefix=""):
         self._logger.debug("%s[[[%s:%s]]]" % (prefix, name, type(item)))
         res = ""
@@ -218,7 +233,7 @@ class Tweak_View(plugins.Plugin):
                     ret += "<body><h1>Tweak View</h1>"
                     ret += '<img src="/ui?%s">' % int(time.time())
                     if path: ret += "<h2>Path</h2><code>%s</code><p>" % repr(path)
-                    #ret += "<h2>Request</h2><code>%s</code><p>" % self.dump_item("Request", request)
+                    ret += "<h2>Request</h2><code>%s</code><p>" % self.dump_item("Request", request)
                     if self._agent:
                         view = self._agent.view()
                         ret += '<h2>Available View Elements</h2><pre><form method=post><input id="csrf_token" name="csrf_token" type="hidden" value="{{ csrf_token() }}">'
@@ -230,25 +245,75 @@ class Tweak_View(plugins.Plugin):
                     abort(404)
             elif request.method == "POST":
                 if path == "update":
-                    ret = "<html><head><title>Tweak view. POST!</title></head>"
-                    ret += "<body><h1>Tweak View POST</h1>"
+                    ret = '<html><head><title>Tweak view. Update!</title><meta name="csrf_token" content="{{ csrf_token() }}"></head>'
+                    ret += "<body><h1>Tweak View Update</h1>"
                     ret += '<img src="/ui?%s">' % int(time.time())
                     ret += "<h2>Path</h2><code>%s</code><p>" % repr(path)
                     ret += "<h2>Request</h2><code>%s</code><p>" % self.dump_item("Request", request.values)
+                    ret += "<h2>Current Mods</h2>%s<p>" % self.show_tweaks(request)
+                    ret += "</body></html>"
+                elif path == "delete_mods":
+                    ret = '<html><head><title>Tweak view. Update!</title><meta name="csrf_token" content="{{ csrf_token() }}"></head>'
+                    ret += "<body><h1>Tweak View Update</h1>"
+                    ret += '<img src="/ui?%s">' % int(time.time())
+                    if "delete_me" in request.form:
+                        ret += "<h2>Delete Mods</h2><ul>\n"
+                        changed = False
+                        for d in request.form.getlist("delete_me"):
+                            if d in self._untweak:
+                                try:
+                                    ret += "<li>Revert %s: %s" % (d, repr(self._untweak[d]))
+                                    vss, element, key = d.split(".")
+                                    ui = self._agent.view()
+                                    if hasattr(ui._state._state[element], key):
+                                        value = self._untweak[d]
+                                        setattr(ui._state._state[element], key, value)
+                                        ret += "<li>Reverted %s %s to %s\n" % (element, key, repr(value))
+                                        self._logger.info("Reverted %s xy to %s" % (element, repr(getattr(ui._state._state[element], key))))
+                                        del(self._untweak[d])
+                                except Exception as err:
+                                    ret += "<li>Revert %s failed: %s" % (d, repr(err))
+                            else:
+                                ret += "<li>%s not in backups\n" % d
+
+                            if d in self._tweaks:
+                                try:
+                                    del(self._tweaks[d])
+                                    ret += "<li>Removed mod %s\n" % d
+                                    changed = True
+                                except Exception as err:
+                                    ret += "<li>Error deleting %s: %s" % (d, repr(err))
+                        if changed:
+                            try:
+                                with open(self._conf_file, "w") as f:
+                                    f.write(json.dumps(self._tweaks))
+                                    ret += "<li>Saved mods\n"
+                            except Exception as err:
+                                ret += "<li><b>Unable to save settings:</b> %s" % repr(err)
+                            
+                        ret += "</ul>\n"
+                    ret += "<h2>Path</h2><code>%s</code><p>" % repr(path)
+                    ret += "<h2>Request</h2><code>%s</code><p>" % self.dump_item("Request", request.values)
+                    ret += "<h2>Current Mods</h2>%s<p>" % self.show_tweaks(request)
                     ret += "</body></html>"
                 else:
-                    
-                    
-                    ret = "<html><head><title>Tweak view. POST!</title></head>"
+                    ret = '<html><head><title>Tweak view. Result!</title><meta name="csrf_token" content="{{ csrf_token() }}"></head>'
                     ret += "<body><h1>Tweak View POST</h1>"
                     ret += '<img src="/ui?%s">' % int(time.time())
                     ret += "<h2>Path</h2><code>%s</code><p>" % repr(path)
                     #ret += "<h2>Request</h2><code>%s</code><p>" % self.dump_item("request", request)
                     ret += "<h2>Form</h2><code>%s</code><p>" % self.update_from_request(request)
+                    ret += "<h2>Current Mods</h2>%s<p>" % self.show_tweaks(request)
                     ret += "</body></html>"
-                return ret
+                return render_template_string(ret)
             else:
-                abort(404)
+                ret = '<html><head><title>Tweak view. Woohoo!</title><meta name="csrf_token" content="{{ csrf_token() }}"></head>'
+                ret += "<body><h1>Tweak View</h1>"
+                ret += '<img src="/ui?%s">' % int(time.time())
+                if path: ret += "<h2>Path</h2><code>%s</code><p>" % repr(path)
+                ret += "</body></html>"
+                return render_template_string(ret)
+                
                     
         except Exception as err:
             self._logger.warning("webhook err: %s" % repr(err))
@@ -259,7 +324,12 @@ class Tweak_View(plugins.Plugin):
         self._start = time.time()
         self._state = 0
         self._next = 0
-        self._rotation = 180
+
+
+    # called when everything is ready and the main loop is about to start
+    def on_ready(self, agent):
+        self._agent = agent
+        
         # load a config file... /etc/pwnagotchi/tweak_view.json for default
         self._conf_file = self.options["filename"] if "filename" in self.options else "/etc/pwnagotchi/tweak_view.json"
         
@@ -285,15 +355,18 @@ class Tweak_View(plugins.Plugin):
                     if key == "xy":
                         ui._state._state[element].xy = value
                         self._logger.info("Reverted %s xy to %s" % (element, repr(ui._state._state[element].xy)))
-                            
-            pass
+                    else:
+                        try:
+                            self._logger.info("Trying to revert %s" % tag)
+                            if hasattr(state, key):
+                                setattr(ui._state._state[element], key, value)
+                                self._logger.info("Reverted %s xy to %s" % (element, repr(getattr(ui._state._state[element], key))))
+                        except Exception as err:
+                            self._logger.warning("ui unload revert %s: %s, %s" % (tag, repr(err), repr(ui)))                            
         except Exception as err:
             self._logger.warning("ui unload: %s, %s" % (repr(err), repr(ui)))
 
 
-    # called when everything is ready and the main loop is about to start
-    def on_ready(self, agent):
-        self._agent = agent
 
     # called to setup the ui elements
     # look at config. Move items around as desired
@@ -316,8 +389,9 @@ class Tweak_View(plugins.Plugin):
                 try:
                     if element in state and key in dir(state[element]):
                         if tag not in self._untweak:
-                            self._untweak[tag] = eval("ui._state._state[element].%s" % key)
-                            self._logger.info("Save for recover: %s = %s" % (tag, self._untweak[tag]))
+                            #self._untweak[tag] = eval("ui._state._state[element].%s" % key)
+                            self._untweak[tag] = getattr(ui._state._state[element], key)
+                            self._logger.info("Saved for unload: %s = %s" % (tag, self._untweak[tag]))
 
                         if key == "xy":
                             new_xy = value.split(",")
