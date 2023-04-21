@@ -32,14 +32,14 @@ class Do_Assoc(plugins.Plugin):
     def on_unload(self, ui):
         if self._agent: self._agent._config['personality']['associate'] = False
         ui.remove_element('assoc_count')
-        logging.info("[Enable_Assoc] unloading: disabled associate")
+        logging.info("[Enable_Assoc] unloading: disabled association")
         pass
 
     # called when everything is ready and the main loop is about to start
     def on_ready(self, agent):
         agent._config['personality']['associate'] = True
         self._agent = agent
-        logging.info("[Enable_Assoc] ready: enabled associate")
+        logging.info("[Enable_Assoc] ready: enabled association")
 
     def on_association(self, agent, access_point):
         self._count += 1
@@ -47,7 +47,6 @@ class Do_Assoc(plugins.Plugin):
 
     # called to setup the ui elements
     def on_ui_setup(self, ui):
-        logging.info("ASSOC setting up ui");
         # add custom UI elements
         if "position" in self.options:
             pos = self.options['position'].split(',')
