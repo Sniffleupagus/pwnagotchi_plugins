@@ -35,10 +35,10 @@ class More_Uptime(plugins.Plugin):
     # called before the plugin is unloaded
     def on_unload(self, ui):
         try:
-            pass
+            if ui.has_element('more_uptime'):
+                ui.remove_element('more_uptime')
         except Exception as err:
             logging.warn("[more uptime] %s" % repr(err))
-        pass
 
     # called when everything is ready and the main loop is about to start
     def on_ready(self, agent):
@@ -47,7 +47,15 @@ class More_Uptime(plugins.Plugin):
     # called to setup the ui elements
     def on_ui_setup(self, ui):
         try:
-            pass
+            # add custom UI elements
+            if not "override" in self.options or not self.options['override']:
+                if "position" in self.options:
+                    pos = self.options['position'].split(',')
+                    pos = [int(x.strip()) for x in pos]
+                else:
+                    pos = (ui.width()-58, 12)
+
+                    ui.add_element('more_uptime', Text(color=BLACK, value='up --:--', position=pos, font=fonts.Small))
         except Exception as err:
             logging.warn("[more uptime] ui setup: %s" % repr(err))
 
@@ -76,11 +84,14 @@ class More_Uptime(plugins.Plugin):
                 label = "IN"
             logging.debug("[more uptime] %s: %s" % (label, res))
             # hijack the stock uptime view, modify label as needed
-            try:
-                uiItems = ui._state._state
-                uiItems['uptime'].label = label
-            except Exception as err:
-                logging.warn("[more uptime] label hijack err: %s", (repr(err)))
-            ui.set('uptime', res)
+            if "override" in self.options and self.options['override']:
+                try:
+                    uiItems = ui._state._state
+                    uiItems['uptime'].label = label
+                except Exception as err:
+                    logging.warn("[more uptime] label hijack err: %s", (repr(err)))
+                ui.set('uptime', res)
+            else:
+                ui.set('more_uptime', "%s %s" % (label, res))
         except Exception as err:
             logging.warn("[more uptime] ui update: %s, %s" % (repr(err), repr(uiItems)))
