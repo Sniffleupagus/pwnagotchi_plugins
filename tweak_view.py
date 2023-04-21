@@ -16,7 +16,7 @@ class Tweak_View(plugins.Plugin):
     __author__ = 'Sniffleupagus'
     __version__ = '1.0.0'
     __license__ = 'GPL3'
-    __description__ = 'Enable and disable ASSOC  on the fly. Enabled when plugin loads, disabled when plugin unloads.'
+    __description__ = 'Edit the UI layout. Ugly interface, no guardrails. Be careful!!!'
 
     myFonts = {"Small": fonts.Small,
                "BoldSmall": fonts.BoldSmall,
