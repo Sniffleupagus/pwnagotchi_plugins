@@ -233,7 +233,7 @@ class Tweak_View(plugins.Plugin):
                     ret += "<body><h1>Tweak View</h1>"
                     ret += '<img src="/ui?%s">' % int(time.time())
                     if path: ret += "<h2>Path</h2><code>%s</code><p>" % repr(path)
-                    ret += "<h2>Request</h2><code>%s</code><p>" % self.dump_item("Request", request)
+                    #ret += "<h2>Request</h2><code>%s</code><p>" % self.dump_item("Request", request)
                     if self._agent:
                         view = self._agent.view()
                         ret += '<h2>Available View Elements</h2><pre><form method=post><input id="csrf_token" name="csrf_token" type="hidden" value="{{ csrf_token() }}">'
