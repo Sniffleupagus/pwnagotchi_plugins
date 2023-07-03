@@ -5,6 +5,7 @@ Plugins for <a href="https://github.com/evilsocket/pwnagotchi/releases/latest">p
 <img width="314" alt="netsucker-ble-uptime" src="https://user-images.githubusercontent.com/129890632/230241710-fd7047ce-89ac-4252-8812-4a51b3e6a2bc.png">
 
 # fix_brcmfmac.py
+<b>Might be too aggressive and restarting unnecessarily. Not currently using it.<p>
 <i>Did you try turning wlan0 off and on again?</i><p>
 
 Substitute for WATCHDOG that tries to fix the problem instead of rebooting. It checks the logs
