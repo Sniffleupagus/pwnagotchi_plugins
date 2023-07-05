@@ -99,6 +99,15 @@ main.plugins.morse_code.delay = 200</code>          # length of a dot in millise
 main.plugins.morse_code.invert = True               # if 1 is off and 0 is on, like Rpi0w
 main.plugins.morese_code.leaveOn = False            # leave light on (off if false) at end of message
 
+# rss_voice.py
+
+An attempt to change canned voice messages to RSS feed. Idea from reddit post: https://www.reddit.com/r/pwnagotchi/comments/ioyg8w/modified_my_pwnagotchi_voicepy_to_return_a_random/
+
+but attempting to use a plugin, instead of modifying the base code. Unfortunately "on_wait" only gets called
+at the start of a long wait, while view and voice update many times during a long wait, without calling the
+plugin handlers again. So either voice.py or view.py needs to be modified anyway. The plugin will work without
+modified code, but the headline will get overwritten with a canned message after a few seconds.
+
 # tweak_view.py
   
 Edit the UI on the fly. It is a terrible user interface. You can break things. But move user interface elements
