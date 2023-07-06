@@ -144,13 +144,13 @@ class RSS_Voice(plugins.Plugin):
 
     # called when the agent is waiting for t seconds
     def on_wait(self, agent, t):
-        self.voice = "(%ss) %s" % (t, self._fetch_rss_message("wait"))
+        self.voice = "(%ss) %s" % (int(t), self._fetch_rss_message("wait"))
         logging.info("RSS_Voice on_wait: %s" % self.voice)
 
 
     # called when the agent is sleeping for t seconds
     def on_sleep(self, agent, t):
-        self.voice = "(%ss zzz) %s" % (t, self._fetch_rss_message("wait"))
+        self.voice = "(%ss zzz) %s" % (int(t), self._fetch_rss_message("sleep"))
 
     # called when an epoch is over (where an epoch is a single loop of the main algorithm)
     def on_epoch(self, agent, epoch, epoch_data):
