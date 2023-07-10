@@ -6,6 +6,7 @@ import json
 import pwnagotchi.plugins as plugins
 from pwnagotchi.ui.components import LabeledValue, Text, Line
 from pwnagotchi.ui.view import BLACK
+from PIL import ImageFont
 import pwnagotchi.ui.fonts as fonts
 import pwnagotchi.utils as utils
 
@@ -18,14 +19,6 @@ class Tweak_View(plugins.Plugin):
     __license__ = 'GPL3'
     __description__ = 'Edit the UI layout. Ugly interface, no guardrails. Be careful!!!'
 
-    myFonts = {"Small": fonts.Small,
-               "BoldSmall": fonts.BoldSmall,
-               "Medium": fonts.Medium,
-               "Bold": fonts.Bold,
-               "BoldBig": fonts.BoldBig,
-               "Huge": fonts.Huge
-               }
-
     # load from save file, parse JSON. dict maps from view_state_state key to new val
     # store originals when tweaks are applie
 
@@ -36,6 +29,15 @@ class Tweak_View(plugins.Plugin):
         self._logger = logging.getLogger(__name__)
         self._tweaks = {}
         self._untweak = {}
+
+        self.myFonts = {"Small": fonts.Small,
+                   "BoldSmall": fonts.BoldSmall,
+                   "Medium": fonts.Medium,
+                   "Bold": fonts.Bold,
+                   "BoldBig": fonts.BoldBig,
+                   "Huge": fonts.Huge
+        }
+
         pass
 
     def show_tweaks(self, request):
@@ -286,7 +288,7 @@ class Tweak_View(plugins.Plugin):
                         if changed:
                             try:
                                 with open(self._conf_file, "w") as f:
-                                    f.write(json.dumps(self._tweaks))
+                                    f.write(json.dumps(self._tweaks, indent=4))
                                     ret += "<li>Saved mods\n"
                             except Exception as err:
                                 ret += "<li><b>Unable to save settings:</b> %s" % repr(err)
@@ -330,8 +332,15 @@ class Tweak_View(plugins.Plugin):
     def on_ready(self, agent):
         self._agent = agent
         
+        # just for kicks
+        for p in [6, 7, 8, 9, 10, 11, 12, 14, 16, 18, 20, 24, 25, 28, 30, 35, 42]:
+            self.myFonts["Deja %s" % p] = ImageFont.truetype('DejaVuSansMono', p)  
+            self.myFonts["DejaB %s" % p] = ImageFont.truetype('DejaVuSansMono-Bold', p)     
+            self.myFonts["DejaO %s" % p] = ImageFont.truetype('DejaVuSansMono-Oblique', p)
+
         # load a config file... /etc/pwnagotchi/tweak_view.json for default
         self._conf_file = self.options["filename"] if "filename" in self.options else "/etc/pwnagotchi/tweak_view.json"
+
         
         try:
             with open(self._conf_file, 'r') as f:
