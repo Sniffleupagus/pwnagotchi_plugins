@@ -5,6 +5,7 @@ Plugins for <a href="https://github.com/evilsocket/pwnagotchi/releases/latest">p
 <img width="314" alt="netsucker-ble-uptime" src="https://user-images.githubusercontent.com/129890632/230241710-fd7047ce-89ac-4252-8812-4a51b3e6a2bc.png">
 
 # fix_brcmfmac.py
+<b>Might be too aggressive and restarting unnecessarily. Not currently using it.<p>
 <i>Did you try turning wlan0 off and on again?</i><p>
 
 Substitute for WATCHDOG that tries to fix the problem instead of rebooting. It checks the logs
@@ -97,6 +98,15 @@ main.plugins.morse_code.led = 0                     # 0 is green light. 1 is the
 main.plugins.morse_code.delay = 200</code>          # length of a dot in milliseconds. other timing is relative
 main.plugins.morse_code.invert = True               # if 1 is off and 0 is on, like Rpi0w
 main.plugins.morese_code.leaveOn = False            # leave light on (off if false) at end of message
+
+# rss_voice.py
+
+An attempt to change canned voice messages to RSS feed. Idea from reddit post: https://www.reddit.com/r/pwnagotchi/comments/ioyg8w/modified_my_pwnagotchi_voicepy_to_return_a_random/
+
+but attempting to use a plugin, instead of modifying the base code. Unfortunately "on_wait" only gets called
+at the start of a long wait, while view and voice update many times during a long wait, without calling the
+plugin handlers again. So either voice.py or view.py needs to be modified anyway. The plugin will work without
+modified code, but the headline will get overwritten with a canned message after a few seconds.
 
 # tweak_view.py
   
