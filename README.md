@@ -77,6 +77,13 @@ main.plugins.gps_more.save_file = "/root/gpstracks/%Y/gps_more_%Y%m%d.gps.json"<
 <code>save_file</code> is processed by <code>strftime()</code>, so you can have a file per day, month, whatever. Also saves fixed with handshake
 files like the original.
 
+# miyagi.py
+
+Mr. Miyagi trained the Karate Kid. Miyagi.py trains pwnagotchis. When the plugin is loaded (manually or when pwnagotchi starts up), if laziness if high (> 0.9), it will drop it to 0.5 to increase likelihood of entering a training session. At the start of training, Miyagi moves brain.nn to brain.nn.bak, backing up the brain, in case of failure. During training, Miyagi updates the MODE display to let you know how many epochs of training have happened in the session. A standard session lasts 50 epochs. At the end of the 50 epochs, laziness will be increased slightly, to slowly reduce the amount of training over time.<p>
+
+Future versions will have the ability to change the AI and personality parameters on the fly.<p>
+
+
 # more_uptime.py
  
   Display cycles between system UPtime (since reboot), PRocess uptime (since pwnagotchi started this time), and plugIN uptime (since this plugin was (re)loaded... like a really bad stopwatch). By default the uptime is underneath the line
