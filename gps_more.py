@@ -8,6 +8,8 @@ import pwnagotchi.ui.fonts as fonts
 from pwnagotchi.ui.components import LabeledValue
 from pwnagotchi.ui.view import BLACK
 
+from geopy import distance
+from math import pi
 
 class GPS_More(plugins.Plugin):
     __author__ = "Sniffleupagus"
@@ -15,16 +17,24 @@ class GPS_More(plugins.Plugin):
     __license__ = "GPL3"
     __description__ = "Save GPS coordinates whenever it seems reasonable. on epoch to get starting point, handshake to update."
 
+# TODO
+#
+# Metric option for speed
+#
+# Don't turn on bettercap gps if it is already on. Don't trigger bettercap!
+#
+
     LINE_SPACING = 10
     LABEL_SPACING = 0
 
     def __init__(self):
         self.running = False
-        self.coordinates = None
+        self.coordinates = {}
         self.agent = None
 
     def on_loaded(self):
-        self.coordinates = None
+        self.coordinates = {}
+        self.prev_coordinates = {}
 
         if "speed" not in self.options:
             self.options['speed'] = "9600"
@@ -34,6 +44,9 @@ class GPS_More(plugins.Plugin):
 
         if 'keepGPSOn' not in self.options:
             self.options['keepGPSOn'] = True
+
+        if 'showEstSpeed' not in self.options:
+            self.options['showEstSpeed'] = True
 
         logging.info("[gps_more] plugin loaded")
 
@@ -49,10 +62,10 @@ class GPS_More(plugins.Plugin):
                 device = d
                 break
             else:
-                logging.debug(f"gps_more unable to find device {d}")
+                logging.warning(f"gps_more unable to find device {d}")
 
         if device:
-            logging.info(
+            logging.debug(
                 f"[gps_more] enabling bettercap's gps module for {device}"
             )
             try:
@@ -130,7 +143,7 @@ class GPS_More(plugins.Plugin):
                 else:
                     logging.info("not saving GPS. Couldn't find location.")
             except Exception as err:
-                logging.warn("[gps_more handshake] %s" % repr(err))
+                logging.warning("[gps_more handshake] %s" % repr(err))
 
     def on_epoch(self, agent, epoch, epoch_data):
         # update during epochs until there is a good lock
@@ -143,11 +156,31 @@ class GPS_More(plugins.Plugin):
 
     def on_bcap_gps_new(self, agent, event):
         try:
+            #logging.info("[gps more] gps.new: %s" % (repr(self.coordinates)))
             coords = event['data']
+            coords["Timestamp"] = time.time()
+            if "EstSpeed" in self.coordinates:
+                coords["EstSpeed"] = self.coordinates["EstSpeed"] # trying to keep up
+
             if coords and all([
                     coords["Latitude"], coords["Longitude"]
             ]):
-                self.coordinates = coords
+                if "Timestamp" in self.prev_coordinates:
+                    dtime = coords["Timestamp"] - self.prev_coordinates["Timestamp"]
+                    displaced = distance.geodesic((coords["Latitude"], coords["Longitude"]),
+                                                  (self.prev_coordinates["Latitude"],
+                                                   self.prev_coordinates["Longitude"]))
+                    if dtime > 0 and displaced > 0:
+                        speed = 3600.0 * displaced.miles / (dtime)
+                        coords["EstSpeed"] = speed
+                        logging.debug("[gps more] gps.new delta %s: %s, %s" % (dtime, displaced.meters, speed))
+                        logging.debug("[gps more] gps.new delta %s: %s, %s" % (dtime, coords["Latitude"], coords["Longitude"]))
+                        logging.debug("[gps more] gps.new delta %s: %s, %s" % (dtime, self.prev_coordinates["Latitude"], self.prev_coordinates["Longitude"]))
+                        self.prev_coordinates = coords
+                else:
+                    self.prev_coordinates = coords
+            self.coordinates = coords
+
         except Exception as err:
             logging.warning("[gps more] gps.new err: %s, %s" % (repr(event), repr(err)))
             
@@ -166,11 +199,11 @@ class GPS_More(plugins.Plugin):
             lat_pos = (pos[0] + 5, pos[1])
             lon_pos = (pos[0], pos[1] + line_spacing)
             alt_pos = (pos[0] + 5, pos[1] + (2 * line_spacing))
+            spd_pos = (pos[0] + 5, pos[1] + (3 * line_spacing))
         except Exception:
             # Set default value based on display type
+            spd_pos = (127, 102)
             if ui.is_waveshare_v2() or ui.is_waveshare_v3():
-                logging.info("[GPS MORE] IS THIS KIND OF DISPLAY")
-
                 lat_pos = (127, 78)
                 lon_pos = (122, 87)
                 alt_pos = (127, 97)
@@ -197,46 +230,63 @@ class GPS_More(plugins.Plugin):
                 alt_pos = (6, 150)
             else:
                 # guessed values, add tested ones if you can
+                logging.info("[GPS MORE] IS UNKNOWN KIND OF DISPLAY")
                 lat_pos = (177, 124)
                 lon_pos = (172, 137)
                 alt_pos = (177, 150)
-
-        ui.add_element(
-            "latitude",
-            LabeledValue(
-                color=BLACK,
-                label="lat:",
-                value="-",
-                position=lat_pos,
-                label_font=fonts.Small,
-                text_font=fonts.Small,
-                label_spacing=self.LABEL_SPACING,
-            ),
-        )
-        ui.add_element(
-            "longitude",
-            LabeledValue(
-                color=BLACK,
-                label="long:",
-                value="-",
-                position=lon_pos,
-                label_font=fonts.Small,
-                text_font=fonts.Small,
-                label_spacing=self.LABEL_SPACING,
-            ),
-        )
-        ui.add_element(
-            "altitude",
-            LabeledValue(
-                color=BLACK,
-                label="alt:",
-                value="-",
-                position=alt_pos,
-                label_font=fonts.Small,
-                text_font=fonts.Small,
-                label_spacing=self.LABEL_SPACING,
-            ),
-        )
+        logging.debug("[gps_more] adding elements")
+        try:
+            ui.add_element(
+                "latitude",
+                LabeledValue(
+                    color=BLACK,
+                    label="LAT:",
+                    value="-",
+                    position=lat_pos,
+                    label_font=fonts.Small,
+                    text_font=fonts.Small,
+                    label_spacing=self.LABEL_SPACING,
+                ),
+            )
+            ui.add_element(
+                "longitude",
+                LabeledValue(
+                    color=BLACK,
+                    label="LON:",
+                    value="-",
+                    position=lon_pos,
+                    label_font=fonts.Small,
+                    text_font=fonts.Small,
+                    label_spacing=self.LABEL_SPACING,
+                ),
+            )
+            ui.add_element(
+                "altitude",
+                LabeledValue(
+                    color=BLACK,
+                    label="ALT:",
+                    value="-",
+                    position=alt_pos,
+                    label_font=fonts.Small,
+                    text_font=fonts.Small,
+                    label_spacing=self.LABEL_SPACING,
+                ),
+            )
+            ui.add_element(
+                "estspeed",
+                LabeledValue(
+                    color=BLACK,
+                    label="MPH:",
+                    value="-",
+                    position=spd_pos,
+                    label_font=fonts.Small,
+                    text_font=fonts.Small,
+                    label_spacing=self.LABEL_SPACING,
+                ),
+            )
+            logging.debug("[gps_more] added elements")
+        except Exception as e:
+            logging.warn("[gps_more] ui_setup: %s" % repr(e))
 
     def on_unload(self, ui):
         with ui._lock:
@@ -244,6 +294,7 @@ class GPS_More(plugins.Plugin):
                 ui.remove_element('latitude')
                 ui.remove_element('longitude')
                 ui.remove_element('altitude')
+                ui.remove_element('estspeed')
                 logging.info("gps_more unloaded")
             except Exception:
                 logging.info("gps_more unload ui issues")
@@ -265,9 +316,35 @@ class GPS_More(plugins.Plugin):
         ]):
             # last char is sometimes not completely drawn ¯\_(ツ)_/¯
             # using an ending-whitespace as workaround on each line
-            ui.set("latitude", f"{self.coordinates['Latitude']:.4f} ")
-            ui.set("longitude", f"{self.coordinates['Longitude']:.4f} ")
+            logging.debug("[gps_more] ui_update: ")
+            ui.set("latitude", f"{self.coordinates['Latitude']:3.4f} ")
+            if self.coordinates['Longitude'] < 0:
+                ui.set("longitude", f"{-self.coordinates['Longitude']:3.4f}W ")
+            else:
+                ui.set("longitude", f"{self.coordinates['Longitude']:3.4f}E ")
+
             ui.set("altitude", f"{self.coordinates['Altitude']:.1f}m ")
+            if "EstSpeed" in self.coordinates:
+                if self.coordinates['EstSpeed'] < 10:
+                    ui.set("estspeed", f"{self.coordinates['EstSpeed']:.3f} ")
+                else:
+                    ui.set("estspeed", f"{self.coordinates['EstSpeed']:.2f} ")
+            else:
+                    ui.set("estspeed", "oops")
+
+        else:
+            logging.debug("[gps_more] ui_update: %s" % repr(self.coordinates))
+            if "NumSatellites" in self.coordinates:
+                ui.set("latitude", "%s " % self.coordinates['NumSatellites'])
+            elif "satelites" in self.coordinates:
+                ui.set("latitude", "%s " % self.coordinates['satellites'])
+            if "HDOP" in self.coordinates:
+                ui.set("longitude", "%s " % self.coordinates['HDOP'])
+            elif "quality" in self.coordinates:
+                ui.set("latitude", "%s " % self.coordinates['quality'])
+            if "Updated" in self.coordinates:
+                ui.set("altitude", "%s " % self.coordinates['Updated'][11:-1])
+            ui.set("estspeed", "-- ")
             
 if __name__ == "__main__":
     gps = GPS_More()
