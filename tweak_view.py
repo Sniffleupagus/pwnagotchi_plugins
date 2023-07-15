@@ -21,7 +21,13 @@ class Tweak_View(plugins.Plugin):
 
     # load from save file, parse JSON. dict maps from view_state_state key to new val
     # store originals when tweaks are applie
-
+    #
+    # have multiple base tweak files (for different display types, whatever)
+    # and choose from them in config
+    # - tweaks can be "system-wide" or associated with a specific base
+    # - when updating the display, create a dict adding base tweaks, system-wide mods, base-specific mods
+    #   so specific overrides global
+    #
     
     def __init__(self):
         self._agent = None
@@ -29,6 +35,7 @@ class Tweak_View(plugins.Plugin):
         self._logger = logging.getLogger(__name__)
         self._tweaks = {}
         self._untweak = {}
+        self._already_updated = []
 
         self.myFonts = {"Small": fonts.Small,
                    "BoldSmall": fonts.BoldSmall,
@@ -179,6 +186,14 @@ class Tweak_View(plugins.Plugin):
                                         res += "<li>%s.%s == %s, %s" % (key[1], key[2], html.escape(val), html.escape(oldf))
                                 self._tweaks[k] = val
                                 changed = True
+                        elif "color" in key[2]:
+                            if val != "%s" % oldval:
+                                res += "<li>*%s.%s : new %s, old %s" % (key[1], key[2], html.escape(repr(val)), html.escape(repr(oldval)))
+                                # validate that it is actual color?
+                                if self._ui:
+                                    self._ui._state._state[key[1]].color = val
+                                self._tweaks[k] = val
+                                changed = True
                         elif "xyz" in key[2]:
                             old_xy = ",".join(map(str,oldval))
                             new_xy = val.split(",")
@@ -209,6 +224,10 @@ class Tweak_View(plugins.Plugin):
                                 changed = True
                         elif str(val) != str(oldval):
                             res += "<li>^%s.%s != %s, %s (%s)" % (key[1], key[2], html.escape(str(val)), html.escape(str(oldval)), html.escape(str(type(val))))
+
+                        if changed:
+                            if key[1] in self._already_updated:
+                                self._already_updated.remove(key[1])
                             
             if changed:
                 try:
@@ -333,7 +352,7 @@ class Tweak_View(plugins.Plugin):
         self._agent = agent
         
         # just for kicks
-        for p in [6, 7, 8, 9, 10, 11, 12, 14, 16, 18, 20, 24, 25, 28, 30, 35, 42]:
+        for p in [6, 7, 8, 9, 10, 11, 12, 14, 16, 18, 20, 24, 25, 28, 30, 35, 42, 69]:
             self.myFonts["Deja %s" % p] = ImageFont.truetype('DejaVuSansMono', p)  
             self.myFonts["DejaB %s" % p] = ImageFont.truetype('DejaVuSansMono-Bold', p)     
             self.myFonts["DejaO %s" % p] = ImageFont.truetype('DejaVuSansMono-Oblique', p)
@@ -346,10 +365,10 @@ class Tweak_View(plugins.Plugin):
             with open(self._conf_file, 'r') as f:
                 self._tweaks = json.load(f)
             for i in self._tweaks:
-                self._logger.info("Loaded tweak %s -> %s" % (i, self._tweaks[i]))
+                self._logger.debug ("Loaded tweak %s -> %s" % (i, self._tweaks[i]))
 
         except Exception as err:
-            self._logger.info("TweakUI loading failed: %s" % repr(err))
+            self._logger.warn("TweakUI loading failed: %s" % repr(err))
 
 
     # called before the plugin is unloaded
@@ -359,19 +378,19 @@ class Tweak_View(plugins.Plugin):
             # go through list of untweaks
             for tag, value in self._untweak.items():
                 vss,element,key = tag.split(".")
-                self._logger.info("Reverting: %s to %s" % (tag, repr(value)))
+                self._logger.debug("Reverting: %s to %s" % (tag, repr(value)))
                 if key in dir(ui._state._state[element]):
                     if key == "xy":
                         ui._state._state[element].xy = value
-                        self._logger.info("Reverted %s xy to %s" % (element, repr(ui._state._state[element].xy)))
+                        self._logger.debug("Reverted %s xy to %s" % (element, repr(ui._state._state[element].xy)))
                     else:
                         try:
-                            self._logger.info("Trying to revert %s" % tag)
+                            self._logger.debug("Trying to revert %s" % tag)
                             if hasattr(state, key):
                                 setattr(ui._state._state[element], key, value)
-                                self._logger.info("Reverted %s xy to %s" % (element, repr(getattr(ui._state._state[element], key))))
+                                self._logger.debug("Reverted %s xy to %s" % (element, repr(getattr(ui._state._state[element], key))))
                         except Exception as err:
-                            self._logger.warning("ui unload revert %s: %s, %s" % (tag, repr(err), repr(ui)))                            
+                            self._logger.warning("revert %s: %s, %s" % (tag, repr(err), repr(ui)))                            
         except Exception as err:
             self._logger.warning("ui unload: %s, %s" % (repr(err), repr(ui)))
 
@@ -380,6 +399,7 @@ class Tweak_View(plugins.Plugin):
     # called to setup the ui elements
     # look at config. Move items around as desired
     def on_ui_setup(self, ui):
+        self._ui = ui
         try:
             self.update_elements(ui)
         except Exception as err:
@@ -396,18 +416,18 @@ class Tweak_View(plugins.Plugin):
             for tag, value in self._tweaks.items():
                 vss,element,key = tag.split(".")
                 try:
-                    if element in state and key in dir(state[element]):
+                    if element not in self._already_updated and element in state and key in dir(state[element]):
                         if tag not in self._untweak:
                             #self._untweak[tag] = eval("ui._state._state[element].%s" % key)
                             self._untweak[tag] = getattr(ui._state._state[element], key)
-                            self._logger.info("Saved for unload: %s = %s" % (tag, self._untweak[tag]))
+                            self._logger.debug("Saved for unload: %s = %s" % (tag, self._untweak[tag]))
 
                         if key == "xy":
                             new_xy = value.split(",")
                             new_xy = [int(float(x.strip())) for x in new_xy]
                             if ui._state._state[element].xy != new_xy:
                                 ui._state._state[element].xy = new_xy
-                                self._logger.info("Updated xy to %s" % repr(ui._state._state[element].xy))
+                                self._logger.debug("Updated xy to %s" % repr(ui._state._state[element].xy))
                         elif key == "font":
                             if value in self.myFonts:
                                 ui._state._state[element].font = self.myFonts[value]
@@ -417,12 +437,18 @@ class Tweak_View(plugins.Plugin):
                         elif key == "label_font":
                             if value in self.myFonts:
                                 ui._state._state[element].label_font = self.myFonts[value]
+                        elif key == "color":
+                            ui._state._state[element].color = value
                         elif key == "label":
                             ui._state._state[element].label = value
                         elif key == "label_spacing":
                             ui._state._state[element].label_spacing = int(value)
                         elif key == "max_length":
                             ui._state._state[element].max_length = int(value)
+                        self._already_updated.append(element)
+                    elif element in self._already_updated and not element in state:
+                        # like a plugin unloaded
+                        self._already_updated.remove(element)
                 except Exception as err:
                     self._logger.warn("tweak failed for key %s: %s" % (tag, repr(err)))
                             
