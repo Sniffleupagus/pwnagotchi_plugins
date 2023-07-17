@@ -28,7 +28,7 @@ class Tweak_View(plugins.Plugin):
     # - when updating the display, create a dict adding base tweaks, system-wide mods, base-specific mods
     #   so specific overrides global
     #
-    
+
     def __init__(self):
         self._agent = None
         self._start = time.time()
@@ -367,6 +367,8 @@ class Tweak_View(plugins.Plugin):
             for i in self._tweaks:
                 self._logger.debug ("Loaded tweak %s -> %s" % (i, self._tweaks[i]))
 
+            self._already_updated = []
+
         except Exception as err:
             self._logger.warn("TweakUI loading failed: %s" % repr(err))
 
@@ -413,6 +415,7 @@ class Tweak_View(plugins.Plugin):
         try:
             state = ui._state._state
             # go through list of tweaks
+            updated = []
             for tag, value in self._tweaks.items():
                 vss,element,key = tag.split(".")
                 try:
@@ -425,6 +428,8 @@ class Tweak_View(plugins.Plugin):
                         if key == "xy":
                             new_xy = value.split(",")
                             new_xy = [int(float(x.strip())) for x in new_xy]
+                            if new_xy[0] < 0: new_xy[0] = ui.width() + new_xy[0]
+                            if new_xy[1] < 0: new_xy[1] = ui.height() + new_xy[1]
                             if ui._state._state[element].xy != new_xy:
                                 ui._state._state[element].xy = new_xy
                                 self._logger.debug("Updated xy to %s" % repr(ui._state._state[element].xy))
@@ -438,6 +443,7 @@ class Tweak_View(plugins.Plugin):
                             if value in self.myFonts:
                                 ui._state._state[element].label_font = self.myFonts[value]
                         elif key == "color":
+                            logging.info("Color: %s = %s" % (element, value))
                             ui._state._state[element].color = value
                         elif key == "label":
                             ui._state._state[element].label = value
@@ -445,12 +451,16 @@ class Tweak_View(plugins.Plugin):
                             ui._state._state[element].label_spacing = int(value)
                         elif key == "max_length":
                             ui._state._state[element].max_length = int(value)
-                        self._already_updated.append(element)
+                        if element not in updated:
+                            updated.append(element)
                     elif element in self._already_updated and not element in state:
                         # like a plugin unloaded
                         self._already_updated.remove(element)
                 except Exception as err:
                     self._logger.warn("tweak failed for key %s: %s" % (tag, repr(err)))
-                            
+
+            for element in updated:
+                if element not in self._already_updated:
+                    self._already_updated.append(element)
         except Exception as err:
             self._logger.warning("ui update: %s, %s" % (repr(err), repr(ui)))
