@@ -12,20 +12,6 @@ from pwnagotchi.ui.components import *
 from pwnagotchi.ui.view import BLACK
 import pwnagotchi.ui.fonts as fonts
 
-#
-# Make an API for other plugins to use
-#
-# try:
-#    import "Touch_Settings"
-#    TS = Touch_Settings_API()
-#    TS.addZone(...)
-#
-# except Exception as e:
-#    logging.info("No touchscreen available")
-#    TS = None
-#
-
-
 class Touch_Settings(plugins.Plugin):
     __author__ = 'Sniffleupagus'
     __version__ = '1.0.0'
@@ -34,21 +20,21 @@ class Touch_Settings(plugins.Plugin):
 
     # plugins that want touchscreen can implement these callback functions:
     #
-    # on_touch_ready(self, touchscreen)
+    ## on_touch_ready(self, touchscreen)
     #
-    # - called when the touchscreen has been started, during Your plugin can use it to know the touchscreen
+    # - called when the touchscreen has been started. Your plugin can use it to know the touchscreen
     #   is available.
     #
-    # on_touch_press(self, ts, ui, ui_element, touch_data)
-    # on_touch_release(self, ts, ui, ui_element, touch_data)
+    ## on_touch_press(self, ts, ui, ui_element, touch_data)
+    ## on_touch_release(self, ts, ui, ui_element, touch_data)
     #
-    # # simplified "button" interface. on_touchscreen_press is the initial touch,
-    # # then supress all the wiggling, and on_touchscreen_release is the "0" when
+    # # simplified button-like interface. on_touch_press is the initial touch,
+    # # then supress all the wiggling, and on_touchs_release is the "0" when
     # # your finger comes off the screen. Much more efficient, if you are just pressing
     # # something to do an action
     #
     #
-    # on_touch_move(self, ts, ui, ui_element, touch_data)
+    ## on_touch_move(self, ts, ui, ui_element, touch_data)
     #
     # # This will get every position update between the press and release (every finger wiggle).
     # # alsmost raw touchscreen access. This does not get called for the press or release, just
@@ -66,7 +52,7 @@ class Touch_Settings(plugins.Plugin):
     #
     #   touch_data = { point: [x,y], pressure: p }
     #     x,y = point of touch
-    #     p = 1-255 (i think) pressure or area or something like that
+    #     p = 1-255 how hard being pressed
     #         0 when released
     #
     #
