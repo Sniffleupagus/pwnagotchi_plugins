@@ -18,7 +18,24 @@ class Touch_Settings(plugins.Plugin):
     __license__ = 'GPL3'
     __description__ = 'Use touchscreen input to toggle settings.'
 
-    # plugins that want touchscreen can implement these callback functions:
+    # Touch screen support
+    #
+    # uses system touchscreens in /dev/input/event*
+    #
+    # Requires tslib and evtest:
+    #
+    #  % sudo apt install evtest libts-bin
+    #
+    # Tested with Waveshare Touch 2.13 E-paper HAT
+    # - add to /boot/config.txt:  dtoverlay=goodix,interrupt=27,reset=22
+    # - pwnagotchi display is "waveshare_v3"
+    #
+    # Tested with Inland 3.5" TFT touchscreen, 26-pin connector
+    # - install https://github.com/goodtft/LCD-show
+    #
+    #
+    #
+    # plugins that want to receive touch events can implement these callback functions:
     #
     ## on_touch_ready(self, touchscreen)
     #
@@ -32,7 +49,6 @@ class Touch_Settings(plugins.Plugin):
     # # then supress all the wiggling, and on_touchs_release is the "0" when
     # # your finger comes off the screen. Much more efficient, if you are just pressing
     # # something to do an action
-    #
     #
     ## on_touch_move(self, ts, ui, ui_element, touch_data)
     #
