@@ -119,12 +119,12 @@ class Touch_Settings(plugins.Plugin):
                     if not output:
                         break
                     output.rstrip('\n')
-                    logging.debug("Looking for screen: %s" % repr(output))
+                    logging.info("Looking for screen: %s" % repr(output))
                     try:
-                        if "Touchscreen" in output:
+                        if "touchscreen" in output.lower():
                             (ts_device, rest) = output.split(':', 2)
                             ts_device = str(ts_device)
-                            logging.debug("Found device %s" % ts_device)
+                            logging.info("Found device %s" % ts_device)
                             break
                     except Exception as e:
                         logging.error(repr(e))
@@ -219,7 +219,7 @@ class Touch_Settings(plugins.Plugin):
         pass
 
     def process_touch(self, tpoint, depth):
-        logging.debug("PT: %s: %s" % (repr(self.tpoint), repr(depth)))
+        logging.debug("PT: %s: %s" % (repr(tpoint), repr(depth)))
 
         touch_data = { 'point':tpoint, 'pressure': depth }
 
@@ -235,15 +235,15 @@ class Touch_Settings(plugins.Plugin):
                 break # stop at first match
 
         if int(depth) > 0:
-            if not self.beingTouched:
+            if not self._beingTouched:
                 plugins.on("touch_press", self, self._view, touch_element, touch_data)
-                self.beingTouched = True
+                self._beingTouched = True
             else:
                 plugins.on("touch_move", self, self._view, touch_element, touch_data)
 
         elif int(depth) == 0:
                 plugins.on("touch_release", self, self._view, touch_element, touch_data)
-                self.beingTouched = False
+                self._beingTouched = False
 
     # button handlers to cycle through touch areas and click
     # just detect clicks for now, NOT IMPLEMENTED YET
