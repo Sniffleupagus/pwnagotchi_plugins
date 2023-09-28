@@ -8,6 +8,7 @@
 from threading import Event
 import _thread
 import logging
+import os
 import time
 
 import pwnagotchi.plugins as plugins
@@ -101,8 +102,8 @@ class MorseCode(plugins.Plugin):
             self.logger.debug("[Morse] skipping '%s' because the worker is busy", message)
 
     def _led(self, on):
-        if on is "on": on = 1
-        elif on is "off": on = 0
+        if on == "on": on = 1
+        elif on == "off": on = 0
 
         # invert if LED brightness=1 is off, 0 is on
         if self.options['invert']:
@@ -117,7 +118,7 @@ class MorseCode(plugins.Plugin):
             self._event.wait()
             self._event.clear()
 
-            if self._message is "QUITXXXQUIT":
+            if self._message == "QUITXXXQUIT":
                 break
 
             self._is_busy = True
@@ -162,7 +163,7 @@ class MorseCode(plugins.Plugin):
                     self.options[k] = v
 
 
-            self._led_file = "/sys/class/leds/led%d/brightness" % int(self.options['led'])
+            self._led_file = self.options['led'] if os.path.isfile(self.options['led']) else ("/sys/class/leds/led%d/brightness" % int(self.options['led']))
             self._delay = int(self.options['delay'])
 
             self._keep_going = True
