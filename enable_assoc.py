@@ -41,6 +41,26 @@ class Do_Assoc(plugins.Plugin):
         self._agent = agent
         logging.info("[Enable_Assoc] ready: enabled association")
 
+    def on_touch_ready(self, touchscreen):
+        logging.info("[ASSOC] Touchscreen %s" % repr(touchscreen))
+
+    def on_touch_press(self, ts, ui, ui_element, touch_data):
+        logging.info("[ASSOC] Touch press: %s" % repr(touch_data));
+        try:
+            if 'point' in touch_data:
+                point = touch_data['point']
+                if point[0] > 50 and point[1] < 50:
+                    logging.info("[ASSOC] Toggling %s" % repr(self._agent._config['personality']['associate']))
+                    self._agent._config['personality']['associate'] = not self._agent._config['personality']['associate']
+                    uiItems = ui._state._state
+                    uiItems['assoc_count'].label = uiItems['assoc_count'].label.upper() if self._agent._config['personality']['associate'] else uiItems['assoc_count'].label.lower() 
+
+        except Exception as err:
+            logging.info("%s" % repr(err))
+
+    def on_touch_release(self, ts, ui, ui_element, touch_data):
+        logging.info("[ASSOC] Touch release: %s" % repr(touch_data));
+
     def on_association(self, agent, access_point):
         self._count += 1
         pass

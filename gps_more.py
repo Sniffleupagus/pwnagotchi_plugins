@@ -25,11 +25,11 @@ class GPS_More(plugins.Plugin):
 #
 
     LINE_SPACING = 10
-    LABEL_SPACING = 0
+    LABEL_SPACING = -2
 
     def __init__(self):
         self.running = False
-        self.coordinates = {}
+        self.coordinates = {'Updated': 0}
         self.agent = None
 
     def on_loaded(self):
@@ -37,7 +37,7 @@ class GPS_More(plugins.Plugin):
         self.prev_coordinates = {}
 
         if "speed" not in self.options:
-            self.options['speed'] = "9600"
+            self.options['speed'] = "57600"
 
         if "device" not in self.options:
             self.options['device'] = "/dev/ttyACM0"
@@ -160,6 +160,7 @@ class GPS_More(plugins.Plugin):
             coords = event['data']
             coords["Timestamp"] = time.time()
             if "EstSpeed" in self.coordinates:
+                coords['Updated'] != self.coordinates['Updated'],
                 coords["EstSpeed"] = self.coordinates["EstSpeed"] # trying to keep up
 
             if coords and all([
@@ -317,18 +318,23 @@ class GPS_More(plugins.Plugin):
             # last char is sometimes not completely drawn ¯\_(ツ)_/¯
             # using an ending-whitespace as workaround on each line
             logging.debug("[gps_more] ui_update: ")
-            ui.set("latitude", f"{self.coordinates['Latitude']:3.4f} ")
-            if self.coordinates['Longitude'] < 0:
-                ui.set("longitude", f"{-self.coordinates['Longitude']:3.4f}W ")
+            if self.coordinates['Latitude'] < 0:
+                ui.set("latitude", f"{-self.coordinates['Latitude']:8.4f}S ")
             else:
-                ui.set("longitude", f"{self.coordinates['Longitude']:3.4f}E ")
+                ui.set("latitude", f"{self.coordinates['Latitude']:8.4f}N ")
+            if self.coordinates['Longitude'] < 0:
+                ui.set("longitude", f"{-self.coordinates['Longitude']:8.4f}W ")
+            else:
+                ui.set("longitude", f"{self.coordinates['Longitude']:8.4f}E ")
 
-            ui.set("altitude", f"{self.coordinates['Altitude']:.1f}m ")
+            ui.set("altitude", f"{self.coordinates['Altitude']:5.1f}m ")
             if "EstSpeed" in self.coordinates:
                 if self.coordinates['EstSpeed'] < 10:
-                    ui.set("estspeed", f"{self.coordinates['EstSpeed']:.3f} ")
+                    ui.set("estspeed", f"{self.coordinates['EstSpeed']:6.4f} ")
+                elif self.coordinates['EstSpeed'] < 100:
+                    ui.set("estspeed", f"{self.coordinates['EstSpeed']:6.3f} ")
                 else:
-                    ui.set("estspeed", f"{self.coordinates['EstSpeed']:.2f} ")
+                    ui.set("estspeed", f"{self.coordinates['EstSpeed']:6.2f} ")
             else:
                     ui.set("estspeed", "oops")
 
