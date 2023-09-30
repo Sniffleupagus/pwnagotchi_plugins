@@ -101,7 +101,9 @@ work with the stock agent.py, but it will have more to blink about if you use th
 are generated in the code right now, but not configurable as config options yet. 
 
 <code>main.plugins.morse_code.enabled = true
-main.plugins.morse_code.led = 0                     # 0 is green light. 1 is the stupid bright red light on Pi3&4
+main.plugins.morse_code.led = 0                     # 0 is the green power light. 1 is the stupid bright red light on Pi3&4
+                                                    # "/sys/class/leds/PWR" on a pizero2, or maybe ACT instead of PWR
+                                                    # "GPIO6" for a gpio led on pin 6 (untested. let me know in an issue)
 main.plugins.morse_code.delay = 200</code>          # length of a dot in milliseconds. other timing is relative
 main.plugins.morse_code.invert = True               # if 1 is off and 0 is on, like Rpi0w
 main.plugins.morese_code.leaveOn = False            # leave light on (off if false) at end of message
