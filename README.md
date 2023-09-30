@@ -102,11 +102,11 @@ are generated in the code right now, but not configurable as config options yet.
 
 <code>main.plugins.morse_code.enabled = true
 main.plugins.morse_code.led = 0                    
-main.plugins.morse_code.delay = 200</code>          # length of a dot in milliseconds. other timing is relative
+main.plugins.morse_code.delay = 200                 # length of a dot in milliseconds. other timing is relative
 main.plugins.morse_code.invert = True               # if 1 is off and 0 is on, like Rpi0w
-main.plugins.morese_code.leaveOn = False            # leave light on (off if false) at end of message
-</code>
-main.plugins.morse_code.led can be specified as an integer to pick an led from /sys/class/leds/led%d, or a full pathname like "/sys/class/leds/PWR/brightness" on pizero2w (might be ACT instead of PWR), or "GPIO6" for an LED on GPIO pin 6 (change the number for other pins...)
+main.plugins.morese_code.leaveOn = False            # leave light on (off if false) at end of message </code>
+
+ main.plugins.morse_code.led can be specified as an integer to pick an led from /sys/class/leds/led%d, or a full pathname like "/sys/class/leds/PWR/brightness" on pizero2w (might be ACT instead of PWR), or "GPIO6" for an LED on GPIO pin 6 (change the number for other pins...)
 
 # rss_voice.py
 
