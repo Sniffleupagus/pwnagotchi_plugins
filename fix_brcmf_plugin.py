@@ -48,7 +48,7 @@ class Fix_BRCMF(plugins.Plugin):
                 self._status = "up"
             last_lines = ''.join(list(TextIOWrapper(subprocess.Popen(['journalctl','-n10','-k'],
                                                                          stdout=subprocess.PIPE).stdout))[-10:])
-            if len(self.pattern.findall(last_lines)) >= 3:
+            if len(self.pattern.findall(last_lines)) >= 5:
                 self._status = "XX"
                 if hasattr(agent, 'view'):
                     display = agent.view()
@@ -75,7 +75,7 @@ class Fix_BRCMF(plugins.Plugin):
     # search syslog events for the brcmf channel fail, and reset when it shows up
     # apparently this only gets messages from bettercap going to syslog, not from syslog
     def on_bcap_sys_log(self, agent, event):
-        if re.search('wifi error while hopping to channel', event['data']['Message']):
+        if re.search('wifi error while hopping to channel.*busy', event['data']['Message']):
             logging.info("[FixBRCMF]SYSLOG MATCH: %s" % event['data']['Message'])
             logging.info("[FixBRCMF]**** restarting wifi.recon")
             try:
