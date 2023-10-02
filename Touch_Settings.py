@@ -12,43 +12,45 @@ from pwnagotchi.ui.components import *
 from pwnagotchi.ui.view import BLACK
 import pwnagotchi.ui.fonts as fonts
 
-#
-# Make an API for other plugins to use
-#
-# try:
-#    import "Touch_Settings"
-#    TS = Touch_Settings_API()
-#    TS.addZone(...)
-#
-# except Exception as e:
-#    logging.info("No touchscreen available")
-#    TS = None
-#
-
-
 class Touch_Settings(plugins.Plugin):
     __author__ = 'Sniffleupagus'
     __version__ = '1.0.0'
     __license__ = 'GPL3'
     __description__ = 'Use touchscreen input to toggle settings.'
 
-    # plugins that want touchscreen can implement these callback functions:
+    # Touch screen support
     #
-    # on_touch_ready(self, touchscreen)
+    # uses system touchscreens in /dev/input/event*
     #
-    # - called when the touchscreen has been started, during Your plugin can use it to know the touchscreen
+    # Requires tslib and evtest:
+    #
+    #  % sudo apt install evtest libts-bin
+    #
+    # Tested with Waveshare Touch 2.13 E-paper HAT
+    # - add to /boot/config.txt:  dtoverlay=goodix,interrupt=27,reset=22
+    # - pwnagotchi display is "waveshare_v3"
+    #
+    # Tested with Inland 3.5" TFT touchscreen, 26-pin connector
+    # - install https://github.com/goodtft/LCD-show
+    #
+    #
+    #
+    # plugins that want to receive touch events can implement these callback functions:
+    #
+    ## on_touch_ready(self, touchscreen)
+    #
+    # - called when the touchscreen has been started. Your plugin can use it to know the touchscreen
     #   is available.
     #
-    # on_touch_press(self, ts, ui, ui_element, touch_data)
-    # on_touch_release(self, ts, ui, ui_element, touch_data)
+    ## on_touch_press(self, ts, ui, ui_element, touch_data)
+    ## on_touch_release(self, ts, ui, ui_element, touch_data)
     #
-    # # simplified "button" interface. on_touchscreen_press is the initial touch,
-    # # then supress all the wiggling, and on_touchscreen_release is the "0" when
+    # # simplified button-like interface. on_touch_press is the initial touch,
+    # # then supress all the wiggling, and on_touchs_release is the "0" when
     # # your finger comes off the screen. Much more efficient, if you are just pressing
     # # something to do an action
     #
-    #
-    # on_touch_move(self, ts, ui, ui_element, touch_data)
+    ## on_touch_move(self, ts, ui, ui_element, touch_data)
     #
     # # This will get every position update between the press and release (every finger wiggle).
     # # alsmost raw touchscreen access. This does not get called for the press or release, just
@@ -66,7 +68,7 @@ class Touch_Settings(plugins.Plugin):
     #
     #   touch_data = { point: [x,y], pressure: p }
     #     x,y = point of touch
-    #     p = 1-255 (i think) pressure or area or something like that
+    #     p = 1-255 how hard being pressed
     #         0 when released
     #
     #
@@ -119,12 +121,12 @@ class Touch_Settings(plugins.Plugin):
                     if not output:
                         break
                     output.rstrip('\n')
-                    logging.debug("Looking for screen: %s" % repr(output))
+                    logging.info("Looking for screen: %s" % repr(output))
                     try:
-                        if "Touchscreen" in output:
+                        if "touchscreen" in output.lower():
                             (ts_device, rest) = output.split(':', 2)
                             ts_device = str(ts_device)
-                            logging.debug("Found device %s" % ts_device)
+                            logging.info("Found device %s" % ts_device)
                             break
                     except Exception as e:
                         logging.error(repr(e))
@@ -219,7 +221,7 @@ class Touch_Settings(plugins.Plugin):
         pass
 
     def process_touch(self, tpoint, depth):
-        logging.debug("PT: %s: %s" % (repr(self.tpoint), repr(depth)))
+        logging.debug("PT: %s: %s" % (repr(tpoint), repr(depth)))
 
         touch_data = { 'point':tpoint, 'pressure': depth }
 
@@ -235,15 +237,15 @@ class Touch_Settings(plugins.Plugin):
                 break # stop at first match
 
         if int(depth) > 0:
-            if not self.beingTouched:
+            if not self._beingTouched:
                 plugins.on("touch_press", self, self._view, touch_element, touch_data)
-                self.beingTouched = True
+                self._beingTouched = True
             else:
                 plugins.on("touch_move", self, self._view, touch_element, touch_data)
 
         elif int(depth) == 0:
                 plugins.on("touch_release", self, self._view, touch_element, touch_data)
-                self.beingTouched = False
+                self._beingTouched = False
 
     # button handlers to cycle through touch areas and click
     # just detect clicks for now, NOT IMPLEMENTED YET
