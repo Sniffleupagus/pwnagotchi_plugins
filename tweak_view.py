@@ -362,10 +362,11 @@ class Tweak_View(plugins.Plugin):
 
         
         try:
-            with open(self._conf_file, 'r') as f:
-                self._tweaks = json.load(f)
-            for i in self._tweaks:
-                self._logger.debug ("Loaded tweak %s -> %s" % (i, self._tweaks[i]))
+            if os.path.isfile(self._conf_file):
+                with open(self._conf_file, 'r') as f:
+                    self._tweaks = json.load(f)
+                    for i in self._tweaks:
+                        self._logger.debug ("Loaded tweak %s -> %s" % (i, self._tweaks[i]))
 
             self._already_updated = []
 
