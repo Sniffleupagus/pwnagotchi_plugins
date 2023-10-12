@@ -22,7 +22,6 @@ class RSS_Voice(plugins.Plugin):
 
     
     def __init__(self):
-        self.last_checks = {"wait" : 0}
         logging.debug("example plugin created")
         self.voice = ""
 
@@ -71,19 +70,15 @@ class RSS_Voice(plugins.Plugin):
                 timeout = 3600 if "timeout" not in v else v["timeout"]
                 logging.debug("RSS_Voice %s timeout = %s" % (repr(k), timeout))
                 try:
-                    if not k in self.last_checks or now > (self.last_checks[k] + timeout):
-                        # update feed if past timeout since last check
-                        rss_file = "/root/voice_rss/%s.rss" % k
-                        if os.path.isfile(rss_file) and now < os.path.getmtime(rss_file) + timeout:
-                            logging.info("too soon by file age!")
-                        else:    
-                            if "url" in v:
-                                self._wget(v["url"], rss_file)
-                                self.last_checks[k] = time.time()
-                            else:
-                                logging.warn("No url in  %s" % repr(v))
+                    # update feed if past timeout since last check
+                    rss_file = "/root/voice_rss/%s.rss" % k
+                    if os.path.isfile(rss_file) and now < os.path.getmtime(rss_file) + timeout:
+                        logging.debug("too soon by file age!")
                     else:
-                        logging.info("too soon!")
+                        if "url" in v:
+                            self._wget(v["url"], rss_file)
+                        else:
+                            logging.warn("No url in  %s" % repr(v))
                 except Exception as e:
                     logging.error("RSS_Voice: %s" % repr(e))
         pass
