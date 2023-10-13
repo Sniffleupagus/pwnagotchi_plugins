@@ -87,12 +87,14 @@ class DisplaySettings(plugins.Plugin):
 
     # called when the AI got the best reward so far
     def on_ai_best_reward(self, agent, reward):
-        self._ui.set_backgroundcolor("#708090")
+        if hasattr(self._display, "set_backgroundcolor"):
+            self._ui.set_backgroundcolor("#708090")
         pass
 
     # called when the AI got the worst reward so far
     def on_ai_worst_reward(self, agent, reward):
-        self._ui.set_backgroundcolor("#203040")
+        if hasattr(self._display, "set_backgroundcolor"):
+            self._ui.set_backgroundcolor("#203040")
         pass
 
     # called when a non overlapping wifi channel is found to be free
@@ -101,19 +103,23 @@ class DisplaySettings(plugins.Plugin):
 
     # called when the status is set to bored
     def on_bored(self, agent):
-        self._ui.set_backgroundcolor("#308080")
+        if hasattr(self._display, "set_backgroundcolor"):
+            self._ui.set_backgroundcolor("#308080")
         pass
 
     # called when the status is set to sad
     def on_sad(self, agent):
-        self._ui.set_backgroundcolor("#302080")
+        if hasattr(self._display, "set_backgroundcolor"):
+            self._ui.set_backgroundcolor("#302080")
         pass
 
     # called when the status is set to excited
     def on_excited(self, agent):
         try:
-            self._display.set_backlight(0.9)
-            self._ui.set_backgroundcolor("#c08080")
+            if hasattr(self._display, "set_backlight"):
+              self._display.set_backlight(0.9)
+            if hasattr(self._display, "set_backgroundcolor"):
+                self._ui.set_backgroundcolor("#c08080")
         except Exception as err:
             logging.warn(repr(err))
         pass
@@ -121,22 +127,27 @@ class DisplaySettings(plugins.Plugin):
     # called when the status is set to lonely
     def on_lonely(self, agent):
         try:
-            self._display.set_backlight(0.4)
-            self._ui.set_backgroundcolor("#101090")
+            if hasattr(self._display, "set_backlight"):
+                self._display.set_backlight(0.4)
+            if hasattr(self._display, "set_backgroundcolor"):
+                self._ui.set_backgroundcolor("#101090")
         except Exception as err:
             logging.warn(repr(err))
         pass
 
     # called when the agent is rebooting the board
     def on_rebooting(self, agent):
-        self._ui.set_backgroundcolor("#101010")
+        if hasattr(self._display, "set_backgroundcolor"):
+            self._ui.set_backgroundcolor("#101010")
         pass
 
     # called when the agent is waiting for t seconds
     def on_wait(self, agent, t):
         try:
-            self._display.set_backlight(0.2)
-            self._ui.set_backgroundcolor("#600000")
+            if hasattr(self._display, "set_backlight"):
+                self._display.set_backlight(0.2)
+            if hasattr(self._display, "set_backgroundcolor"):
+                self._ui.set_backgroundcolor("#600000")
         except Exception as err:
             logging.warn(repr(err))
         pass
@@ -144,8 +155,10 @@ class DisplaySettings(plugins.Plugin):
     # called when the agent is sleeping for t seconds
     def on_sleep(self, agent, t):
         try:
-            self._display.set_backlight(0.1)
-            self._ui.set_backgroundcolor("#000080")
+            if hasattr(self._display, "set_backlight"):
+                self._display.set_backlight(0.1)
+            if hasattr(self._display, "set_backgroundcolor"):
+                self._ui.set_backgroundcolor("#000080")
         except Exception as err:
             logging.warn(repr(err))
         pass
@@ -153,8 +166,10 @@ class DisplaySettings(plugins.Plugin):
     # called when the agent refreshed its access points list
     def on_wifi_update(self, agent, access_points):
         try:
-            self._display.set_backlight(0.6)
-            self._ui.set_backgroundcolor("#208030")
+            if hasattr(self._display, "set_backlight"):
+                self._display.set_backlight(0.6)
+            if hasattr(self._display, "set_backgroundcolor"):
+                self._ui.set_backgroundcolor("#208030")
         except Exception as err:
             logging.warn(repr(err))
         pass
@@ -167,47 +182,57 @@ class DisplaySettings(plugins.Plugin):
     # called when the agent is sending an association frame
     def on_association(self, agent, access_point):
         try:
-            self._display.set_backlight(0.8)
-            self._ui.set_backgroundcolor("#208020")
+            if hasattr(self._display, "set_backlight"):
+                self._display.set_backlight(0.8)
+            if hasattr(self._display, "set_backgroundcolor"):
+                self._ui.set_backgroundcolor("#208020")
         except Exception as err:
             logging.warn(repr(err))
         pass
 
     # called when the agent is deauthenticating a client station from an AP
     def on_deauthentication(self, agent, access_point, client_station):
-        self._ui.set_backgroundcolor("#400000")
+        if hasattr(self._display, "set_backgroundcolor"):
+            self._ui.set_backgroundcolor("#400000")
         pass
 
     # callend when the agent is tuning on a specific channel
     def on_channel_hop(self, agent, channel):
-        self._ui.set_backgroundcolor("#00a000")
+        if hasattr(self._display, "set_backgroundcolor"):
+            self._ui.set_backgroundcolor("#00a000")
         pass
 
     # called when a new handshake is captured, access_point and client_station are json objects
     # if the agent could match the BSSIDs to the current list, otherwise they are just the strings of the BSSIDs
     def on_handshake(self, agent, filename, access_point, client_station):
         try:
-            self._display.set_backlight(1.0)
-            self._ui.set_backgroundcolor("#00FF00")
+            if hasattr(self._display, "set_backlight"):
+                self._display.set_backlight(1.0)
+            if hasattr(self._display, "set_backgroundcolor"):
+                self._ui.set_backgroundcolor("#00FF00")
         except Exception as err:
             logging.warn(repr(err))
         pass
 
     # called when an epoch is over (where an epoch is a single loop of the main algorithm)
     def on_epoch(self, agent, epoch, epoch_data):
-        self._ui.set_backgroundcolor("#305070")
+        if hasattr(self._display, "set_backgroundcolor"):
+            self._ui.set_backgroundcolor("#305070")
         pass
 
     # called when a new peer is detected
     def on_peer_detected(self, agent, peer):
         try:
-            self._display.set_backlight(1.0)
-            self._ui.set_backgroundcolor("#008080")
+            if hasattr(self._display, "set_backlight"):
+                self._display.set_backlight(1.0)
+            if hasattr(self._display, "set_backgroundcolor"):
+                self._ui.set_backgroundcolor("#008080")
         except Exception as err:
             logging.warn(repr(err))
         pass
 
     # called when a known peer is lost
     def on_peer_lost(self, agent, peer):
-        self._ui.set_backgroundcolor("#800080")
+        if hasattr(self._display, "set_backgroundcolor"):
+            self._ui.set_backgroundcolor("#800080")
         pass
