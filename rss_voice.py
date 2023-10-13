@@ -22,9 +22,9 @@ class RSS_Voice(plugins.Plugin):
 
     
     def __init__(self):
-        logging.debug("example plugin created")
+        self.last_checks = {"wait" : 0}
+        logging.debug("RSS_Voice plugin started")
         self.voice = ""
-
 
     def _wget(self, url, rssfile, verbose = False):
         logging.info("RSS_Voice _wget %s: %s" % (rssfile, url))
@@ -32,15 +32,17 @@ class RSS_Voice(plugins.Plugin):
         logging.info("RSS_Voice: %s", repr(process))
 
     def _fetch_rss_message(self, key):
-        rssfile = "/root/voice_rss/%s.rss" % key
+        rssfile = "%s/%s.rss" % (self.options["path"], key)
         if os.path.isfile(rssfile):
             logging.info("RSS_Voice pulling from %s" % (rssfile))
-            random_headline = "grep -Po \'<title>((?!<).)*</title>\' " + rssfile + " | sed \'s/<title>//g\' | sed \'s/<\/title>//g\' | shuf -n 1 | cut -c -64"
+            random_headline = "grep -Po \'<title>((?!<).)*</title>\' " + rssfile + " | sed \'s/<title>//g\' | sed \'s/<\/title>//g\' | shuf -n 1 | cut -c -84"
             headline = os.popen(random_headline).read().rstrip()
 
             logging.info("RSS_Voice %s: %s" % (key, headline))
             
             return headline
+        else:
+            return ""
         
     # called when http://<host>:<port>/plugins/<plugin>/ is called
     # must return a html page
@@ -52,6 +54,16 @@ class RSS_Voice(plugins.Plugin):
     # called when the plugin is loaded
     def on_loaded(self):
         logging.warning("RSS_Voice options = %s" % self.options)
+        if "path" not in self.options:
+            self.options['path'] = "/root/voice_rss"
+
+        rssdir = self.options['path']
+        if not os.path.isdir(rssdir):
+            logging.info("mkdir %s" % (rssdir))
+            try:
+                os.mkdir(rssdir)
+            except Exception as e:
+                logging.error("mkdir %s: %s" % (rssdir, repr(e)))
 
     # called before the plugin is unloaded
     def on_unload(self, ui):
@@ -70,15 +82,19 @@ class RSS_Voice(plugins.Plugin):
                 timeout = 3600 if "timeout" not in v else v["timeout"]
                 logging.debug("RSS_Voice %s timeout = %s" % (repr(k), timeout))
                 try:
-                    # update feed if past timeout since last check
-                    rss_file = "/root/voice_rss/%s.rss" % k
-                    if os.path.isfile(rss_file) and now < os.path.getmtime(rss_file) + timeout:
-                        logging.debug("too soon by file age!")
+                    if not k in self.last_checks or now > (self.last_checks[k] + timeout):
+                        # update feed if past timeout since last check
+                        rss_file = "%s/%s.rss" % (self.options['path'], k)
+                        if os.path.isfile(rss_file) and now < os.path.getmtime(rss_file) + timeout:
+                            logging.info("too soon by file age!")
+                        else:    
+                            if "url" in v:
+                                self._wget(v["url"], rss_file)
+                                self.last_checks[k] = time.time()
+                            else:
+                                logging.warn("No url in  %s" % repr(v))
                     else:
-                        if "url" in v:
-                            self._wget(v["url"], rss_file)
-                        else:
-                            logging.warn("No url in  %s" % repr(v))
+                        logging.info("too soon!")
                 except Exception as e:
                     logging.error("RSS_Voice: %s" % repr(e))
         pass
