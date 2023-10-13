@@ -37,8 +37,22 @@ class More_Uptime(plugins.Plugin):
         try:
             if ui.has_element('more_uptime'):
                 ui.remove_element('more_uptime')
+            uptimes = open('/proc/uptime').read().split()
+            now = time.time()
+            with open("/var/log/pwnagotchi_uptime.log", "a") as file:
+                file.write("%s %s %s %s unload\n" % (now, now - self._start, uptimes[0], uptimes[1]))
         except Exception as err:
-            logging.warn("[more uptime] %s" % repr(err))
+            logging.warn("[more uptime] unload this: %s" % repr(err))
+
+    # called when the agent is rebooting the board
+    def on_rebooting(self, agent):
+        try:
+            uptimes = open('/proc/uptime').read().split()
+            now = time.time()
+            with open("/var/log/pwnagotchi_uptime.log", "a") as file:
+                file.write("%s %s %s %s reboot\n" % (now, now - self._start, uptimes[0], uptimes[1]))
+        except Exception as err:
+            logging.warn("[more uptime] reboot this: %s" % repr(err))
 
     # called when everything is ready and the main loop is about to start
     def on_ready(self, agent):
