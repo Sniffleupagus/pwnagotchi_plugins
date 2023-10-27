@@ -1,6 +1,9 @@
 import os
+import re
+import sys
 import time
 import logging
+import random, re
 import subprocess
 
 import pwnagotchi.plugins as plugins
@@ -8,6 +11,15 @@ from pwnagotchi.ui.components import LabeledValue
 from pwnagotchi.ui.view import BLACK
 import pwnagotchi.ui.fonts as fonts
 
+import html
+
+try:
+    import feedparser
+except Exception as e:
+    logging.error("%s. Installing feedparser..." % repr(e))
+    subprocess.check_call([sys.executable, "-m", "pip", "install", "feedparser"])
+    logging.info("Trying to import 'feedparser' again")
+    import feedparser
 
 class RSS_Voice(plugins.Plugin):
     __author__ = 'Sniffleupagus'
@@ -27,18 +39,39 @@ class RSS_Voice(plugins.Plugin):
         self.voice = ""
 
     def _wget(self, url, rssfile, verbose = False):
-        logging.info("RSS_Voice _wget %s: %s" % (rssfile, url))
+        logging.debug("RSS_Voice _wget %s: %s" % (rssfile, url))
         process = subprocess.run(["/usr/bin/wget", "-q", "-O", rssfile, url])
-        logging.info("RSS_Voice: %s", repr(process))
+        logging.debug("RSS_Voice: %s", repr(process))
 
     def _fetch_rss_message(self, key):
         rssfile = "%s/%s.rss" % (self.options["path"], key)
         if os.path.isfile(rssfile):
-            logging.info("RSS_Voice pulling from %s" % (rssfile))
-            random_headline = "grep -Po \'<title>((?!<).)*</title>\' " + rssfile + " | sed \'s/<title>//g\' | sed \'s/<\/title>//g\' | shuf -n 1 | cut -c -84"
-            headline = os.popen(random_headline).read().rstrip()
+            logging.debug("RSS_Voice pulling from %s" % (rssfile))
+            try:
+                feed = feedparser.parse(rssfile)
+                article = random.choice(feed.entries)
 
-            logging.info("RSS_Voice %s: %s" % (key, headline))
+                def sub_element(match_obj):
+                    ele = match_obj.group(1)
+                    if ele in article: return article[ele]
+                    else:
+                        try:
+                            return html.unescape(re.sub('<[^>]+>', '', eval("article[%s]" % ele)))
+
+                        except Exception as e:
+                            logging.warn(repr(e))
+                            return repr(e)
+
+                if "format" in self.options["feed"][key]:
+                    headline = re.sub(r"%([^%]+)%", sub_element, self.options["feed"][key]["format"])
+                    headline = html.unescape(re.sub('<[^>]+>', '', headline))
+                else:
+                    headline = "%s: %s" % (article.author[3:], html.unescape(re.sub('<[^>]+>', '', article.summary)))
+
+            except Exception as e:
+                headline = repr(e)
+
+            logging.debug("RSS_Voice %s: %s" % (key, headline))
             
             return headline
         else:
@@ -59,7 +92,7 @@ class RSS_Voice(plugins.Plugin):
 
         rssdir = self.options['path']
         if not os.path.isdir(rssdir):
-            logging.info("mkdir %s" % (rssdir))
+            logging.info("Creating directory for rss feeds: %s" % (rssdir))
             try:
                 os.mkdir(rssdir)
             except Exception as e:
@@ -86,7 +119,7 @@ class RSS_Voice(plugins.Plugin):
                         # update feed if past timeout since last check
                         rss_file = "%s/%s.rss" % (self.options['path'], k)
                         if os.path.isfile(rss_file) and now < os.path.getmtime(rss_file) + timeout:
-                            logging.info("too soon by file age!")
+                            logging.debug("too soon by file age!")
                         else:    
                             if "url" in v:
                                 self._wget(v["url"], rss_file)
@@ -94,7 +127,7 @@ class RSS_Voice(plugins.Plugin):
                             else:
                                 logging.warn("No url in  %s" % repr(v))
                     else:
-                        logging.info("too soon!")
+                        logging.debug("too soon!")
                 except Exception as e:
                     logging.error("RSS_Voice: %s" % repr(e))
         pass
@@ -113,7 +146,7 @@ class RSS_Voice(plugins.Plugin):
     def on_ui_update(self, ui):
         # update those elements
         if self.voice != "":
-            logging.info("RSS: Status to %s" % self.voice)
+            logging.debug("RSS: Status to %s" % self.voice)
             ui.set('status', self.voice)
             self.voice = ""
 
@@ -156,7 +189,7 @@ class RSS_Voice(plugins.Plugin):
     # called when the agent is waiting for t seconds
     def on_wait(self, agent, t):
         self.voice = "(%ss) %s" % (int(t), self._fetch_rss_message("wait"))
-        logging.info("RSS_Voice on_wait: %s" % self.voice)
+        logging.debug("RSS_Voice on_wait: %s" % self.voice)
 
 
     # called when the agent is sleeping for t seconds
