@@ -10,6 +10,8 @@ from PIL import ImageFont
 import pwnagotchi.ui.fonts as fonts
 import pwnagotchi.utils as utils
 
+from textwrap import TextWrapper
+
 from flask import abort
 from flask import render_template_string
 
@@ -451,7 +453,9 @@ class Tweak_View(plugins.Plugin):
                         elif key == "label_spacing":
                             ui._state._state[element].label_spacing = int(value)
                         elif key == "max_length":
-                            ui._state._state[element].max_length = int(value)
+                            uie = ui._state._state[element]
+                            uie.max_length = int(value)
+                            uie.wrapper = TextWrapper(width=int(value), replace_whitespace=False) if uie.wrap else None
                         if element not in updated:
                             updated.append(element)
                     elif element in self._already_updated and not element in state:
