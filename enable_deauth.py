@@ -9,7 +9,7 @@ import pwnagotchi.ui.fonts as fonts
 
 try:
     sys.path.append(os.path.dirname(__file__))
-    from Touch_Settings import Touch_Button, Touch_Screen
+    from Touch_UI import Touch_Button, Touch_Screen
 except Exception as e:
     logging.warn(repr(e))
 
