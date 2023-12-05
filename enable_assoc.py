@@ -1,3 +1,4 @@
+import os, sys
 import logging
 
 import pwnagotchi.plugins as plugins
@@ -5,8 +6,13 @@ from pwnagotchi.ui.components import LabeledValue
 from pwnagotchi.ui.view import BLACK
 import pwnagotchi.ui.fonts as fonts
 
+try:
+    sys.path.append(os.path.dirname(__file__))
+    from Touch_Settings import Touch_Button, Touch_Screen
+except Exception as e:
+    logging.warn(repr(e))
 
-class Do_Assoc(plugins.Plugin):
+class enable_assoc(plugins.Plugin):
     __author__ = 'evilsocket@gmail.com'
     __version__ = '1.0.0'
     __license__ = 'GPL3'
@@ -15,7 +21,8 @@ class Do_Assoc(plugins.Plugin):
     def __init__(self):
         self._agent = None
         self._count = 0
-        pass
+        self.hasTouch = False
+        self._touchscreen = None
 
     # called when http://<host>:<port>/plugins/<plugin>/ is called
     # must return a html page
@@ -30,52 +37,76 @@ class Do_Assoc(plugins.Plugin):
 
     # called before the plugin is unloaded
     def on_unload(self, ui):
-        if self._agent: self._agent._config['personality']['associate'] = False
-        ui.remove_element('assoc_count')
-        logging.info("[Enable_Assoc] unloading: disabled association")
-        pass
+        try:
+            if not self.hasTouch and self._agent:
+                self._agent._config['personality']['associate'] = False
+            ui.remove_element('assoc_count')
+            logging.info("[Enable_Assoc] unloading")
+        except Exception as e:
+            logging.warn(repr(e))
 
     # called when everything is ready and the main loop is about to start
     def on_ready(self, agent):
-        agent._config['personality']['associate'] = True
         self._agent = agent
+
+        self.hasTouch = self._touchscreen and self._touchscreen.running
+
+        if self.hasTouch and self._ui:
+            self._ui._state._state['assoc_count'].state = self._agent._config['personality']['associate']
+        else:
+            agent._config['personality']['associate'] = True
+
         logging.info("[Enable_Assoc] ready: enabled association")
 
     def on_touch_ready(self, touchscreen):
         logging.info("[ASSOC] Touchscreen %s" % repr(touchscreen))
+        self._touchscreen = touchscreen
+        self.hasTouch = self._touchscreen and self._touchscreen.running
 
-    def on_touch_press(self, ts, ui, ui_element, touch_data):
-        logging.info("[ASSOC] Touch press: %s" % repr(touch_data));
+    def on_touch_release(self, ts, ui, ui_element, touch_data):
+        logging.debug("[ASSOC] Touch release: %s" % repr(touch_data));
         try:
-            if 'point' in touch_data:
-                point = touch_data['point']
-                if point[0] > 50 and point[1] < 50:
-                    logging.info("[ASSOC] Toggling %s" % repr(self._agent._config['personality']['associate']))
-                    self._agent._config['personality']['associate'] = not self._agent._config['personality']['associate']
-                    uiItems = ui._state._state
-                    uiItems['assoc_count'].label = uiItems['assoc_count'].label.upper() if self._agent._config['personality']['associate'] else uiItems['assoc_count'].label.lower() 
+            if ui_element == "assoc_count":
+                logging.debug("Toggling assoc %s" % repr(self._agent._config['personality']['associate']))
+                self._agent._config['personality']['associate'] = self._ui._state._state['assoc_count'].state
+                logging.info("Toggled assoc to %s" % repr(self._ui._state._state['assoc_count'].state))
 
         except Exception as err:
             logging.info("%s" % repr(err))
 
-    def on_touch_release(self, ts, ui, ui_element, touch_data):
-        logging.info("[ASSOC] Touch release: %s" % repr(touch_data));
+    def on_touch_press(self, ts, ui, ui_element, touch_data):
+        logging.debug("[ASSOC] Touch press: %s" % repr(touch_data));
 
     def on_association(self, agent, access_point):
         self._count += 1
-        pass
 
     # called to setup the ui elements
     def on_ui_setup(self, ui):
+        self._ui = ui
+        self.hasTouch = self._touchscreen and self._touchscreen.running
         # add custom UI elements
         if "position" in self.options:
             pos = self.options['position'].split(',')
             pos = [int(x.strip()) for x in pos]
         else:
-            pos = (0,29)
-            
-        ui.add_element('assoc_count', LabeledValue(color=BLACK, label='A', value='0', position=pos,
-                                                   label_font=fonts.BoldSmall, text_font=fonts.Small))
+            pos = (0,29,30,59)
+
+        try:
+            ui.add_element('assoc_count', Touch_Button(position=pos,
+                                                       color='#ccccff', alt_color='White',
+                                                       outline="DarkGray",
+                                                       state=False,
+                                                       text="assoc", value=0, text_color="Black",
+                                                       alt_text=None, alt_text_color="Green",
+                                                       font=fonts.Medium, alt_font=fonts.Medium,
+                                                       shadow="Black", highlight="White",
+                                                       event_handler="enable_assoc"
+                                                       )
+                           )
+        except Exception as e:
+            logging.warn(repr(e))
+        #ui.add_element('assoc_count', LabeledValue(color=BLACK, label='A', value='0', position=pos,
+        #                                           label_font=fonts.BoldSmall, text_font=fonts.Small))
 
         # called when the ui is updated
     def on_ui_update(self, ui):
