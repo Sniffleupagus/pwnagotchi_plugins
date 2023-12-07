@@ -5,6 +5,9 @@ import threading
 import time
 import os
 import RPi.GPIO as GPIO
+
+import numpy as np
+
 from subprocess import Popen, PIPE, check_output
 
 import pwnagotchi.plugins as plugins
