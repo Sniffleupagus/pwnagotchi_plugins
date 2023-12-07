@@ -12,7 +12,7 @@ import pwnagotchi.utils as utils
 
 try:
     sys.path.append(os.path.dirname(__file__))    
-    from Touch_Settings import Touch_Button as Button
+    from Touch_UI import Touch_Button as Button
 except Exception as e:
     logging.warn(repr(e))
 
