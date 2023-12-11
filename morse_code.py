@@ -166,6 +166,8 @@ class MorseCode(plugins.Plugin):
 
             if os.path.isfile(self.options['led']):
                 self._led_file = self.options['led']
+            elif isinstance(self.options['led'], int):
+                self._led_file = "/sys/class/leds/led%d/brightness" % int(self.options['led'])
             elif "gpio" in self.options['led'].lower():
                 pin = self.options['led'][4:]
                 gpio_pin =  "/sys/class/gpio/gpio%s" % pin
@@ -175,7 +177,7 @@ class MorseCode(plugins.Plugin):
                 os.system('echo out > %s/direction' % gpio_pin)
                 self._led_file = "/sys/class/gpio/gpio%s/value" % pin
             else:
-               self._led_file = "/sys/class/leds/led%d/brightness" % int(self.options['led'])
+               self._led_file = "/sys/class/leds/%s/brightness" % int(self.options['led'])
 
             self._delay = int(self.options['delay'])
 
