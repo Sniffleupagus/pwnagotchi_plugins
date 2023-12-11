@@ -5,14 +5,119 @@ import threading
 import time
 import os
 import RPi.GPIO as GPIO
-from subprocess import Popen, PIPE
+
+import numpy as np
+
+from subprocess import Popen, PIPE, check_output
 
 import pwnagotchi.plugins as plugins
 from pwnagotchi.ui.components import *
 from pwnagotchi.ui.view import BLACK
 import pwnagotchi.ui.fonts as fonts
 
-class Touch_Settings(plugins.Plugin):
+class Touch_Button(Widget):
+    def __init__(self, position=(0,0,30,30), color='White', *,
+                 state=False, momentary=False, reverse=False,
+                 text=None, value=None, text_color="Black", font=None, image=None,
+                 shadow='Black', highlight='White', outline = None,
+                 alt_text=None, alt_text_color=None, alt_font=None, alt_image=None, alt_color=None,
+                 event_handler=None):
+
+        super().__init__(position, color)
+        self.event_handler = event_handler   # callback events, press, release
+        self.xy = position
+        self.color = color
+        self.state = state            # False=off, True=on
+        self.momentary = momentary    # False = toggle on/off, True  = on while pressed, off on release (single action)
+        self.reverse = reverse        # if True, then default state is True, and alt state is False
+
+        self.shadow = shadow          # on "falling" sides of button
+        self.highlight = highlight    # on "rising" sides of button
+        self.outline = outline        # outer ring of button, drawn last
+
+        self.text = text              # text label
+        self.value = value            # default value (if set, displayed under text)
+        self.text_color = text_color  # default text_color
+        self.font = font              # default font (None)
+        if image:
+            try:
+                self.image = Image.open(image)
+            except Exception as e:
+                logging.warn("Image %s error: %s" % (image, repr(e)))
+                self.image = None
+        else:
+            self.image = None            # default image (None)
+
+        # alternate display items for pressed state
+        self.alt_color = alt_color
+        self.alt_text_color = alt_text_color if alt_text_color else text_color
+        self.alt_text = alt_text
+        self.alt_font = alt_font if alt_font else font
+        if alt_image:
+            try:
+                self.alt_image = Image.open(alt_image)
+            except Exception as e:
+                logging.warn("Image %s error: %s" % (alt_image, repr(e)))
+                self.alt_image = None
+        else:
+            self.alt_image = None            # default image (None)
+
+    def draw(self, canvas, drawer):
+        try:
+            pressed = self.state != self.reverse
+            xy = np.array(self.xy)
+
+            # draw button highlight and shadow
+            if pressed:
+                upper = list(np.add(xy, np.array([-1,-1,0,0])))
+                drawer.rectangle(upper, fill=self.highlight)
+            else:
+                lower = list(np.add(xy, np.array([2,2,1,1])))
+                drawer.rectangle(lower, fill=self.shadow)
+                xy = np.add(xy, np.array([-1,-1,-1,-1]))
+
+            # draw button background
+            color = self.alt_color if pressed and self.alt_color else self.color
+            drawer.rectangle(list(xy), fill = color, outline=self.outline)
+
+            image = self.alt_image if pressed and self.alt_image else self.image
+            if (image):
+                canvas.paste(image, list(xy))
+
+            text = self.alt_text if pressed and self.alt_text else self.text
+
+            value = self.value
+
+            if value:
+                if text:
+                    text = "%s\n%s" % (text, value)
+                else:
+                    text = "%s" % value
+
+            text_color = self.alt_text_color if pressed else self.text_color
+            text_font = self.alt_font if pressed else self.font
+
+            if text:
+                textpos = ((xy[0]+xy[2])/2, (xy[1]+xy[3])/2+1)
+                drawer.text(textpos, text, anchor="mm", fill=text_color, font=text_font, align="center")
+
+            #if self.outline:
+            #    drawer.rectangle(list(np.add(xy, np.array([-1,-1,1,1]))), outline = self.outline)
+
+        except Exception as e:
+            logging(repr(e))
+
+
+def singleton(cls, *args, **kw):
+    instances = {}
+    def _singleton(*args, **kw):
+        if cls not in instances:
+            instances[cls] = cls(*args, **kw)
+        return instances[cls]
+    return _singleton
+
+@singleton
+class Touch_Screen(plugins.Plugin):
     __author__ = 'Sniffleupagus'
     __version__ = '1.0.0'
     __license__ = 'GPL3'
@@ -91,6 +196,7 @@ class Touch_Settings(plugins.Plugin):
 
     
     def __init__(self):
+        self.running = False
         self._ts_thread = None       # ts_print thread
         self.keepGoing = False       # let the ts_print thread know to stop going when we exit
         self._view = None            # pwnagotchi view/ui/display
@@ -101,6 +207,8 @@ class Touch_Settings(plugins.Plugin):
         self.touchscreen = None      # ts_print external process
 
         self.touch_elements = {}     # ui elements of interest for touch events
+
+        self.needsAptPackages = None
 
         # use buttons to cycle through user elements
         # web_ui to select which ones to include or not include
@@ -116,6 +224,9 @@ class Touch_Settings(plugins.Plugin):
                 # try to find a touchscreen device
                 evtest = Popen(("/usr/bin/evtest"), stdout=PIPE, stderr=PIPE,
                                universal_newlines=True)
+                if not evtest:
+                    self.needsAptPackages = ['evtest', 'libts-bin']
+
                 while True:
                     output = str(evtest.stderr.readline())
                     if not output:
@@ -126,32 +237,47 @@ class Touch_Settings(plugins.Plugin):
                         if "touchscreen" in output.lower():
                             (ts_device, rest) = output.split(':', 2)
                             ts_device = str(ts_device)
-                            logging.info("Found device %s" % ts_device)
+                            logging.info("Found touchscreen device %s" % ts_device)
                             break
                     except Exception as e:
                         logging.error(repr(e))
 
-            if ts_device:
+            self.keepGoing = True
+            while ts_device and self.keepGoing:
                 cmd = "/usr/bin/ts_print"
                 os.environ["TSLIB_TSDEVICE"] = "%s" % ts_device
-                self.touchscreen = Popen(['stdbuf', '-o0', cmd], env=os.environ, stdout=PIPE, universal_newlines=True, shell=False)
+                self.touchscreen = Popen(['stdbuf', '-o0', cmd], env=os.environ, stdout=PIPE, universal_newlines=True, shell=False) if not self.needsAptPackages else None
+
                 if self.touchscreen:
-                    self.keepGoing = True
+                    logging.info("ts_print running")
+                    self.running = True
                     for output in self.touchscreen.stdout:
                         if not output or not self.keepGoing:
                             break
                         output = output.strip()
                         logging.debug("Touch '%s'" % output)
-                        (tstamp, x, y, depth) = output.split()
+                        (tstamp, y, x, depth) = output.split()
                         x = int(x)
                         y = int(y)
+
+                        rotation = self._agent._config['ui']['display']['rotation'] if self._agent else 180
+
+                        if rotation == 180: # 0,0 is top left, but touch screen 0,0 is bottom left
+                            x = self._view._width - x
+                        else:
+                            y = self._view._height - y
+
                         depth = int(depth)
                         if tstamp:
                             logging.debug("Touch %s at %s, %s" % (depth, x, y))
                             self.process_touch([int(x),int(y)], depth)
+                    logging.info("ts_print exited")
+                    self.running = False
                 else:
                     logging.info("No touchscreen?")
-            logging.info("ts_print exitted")
+                    self.needsAptPackages = ['evtest', 'libts-bin']
+                time.sleep(1)
+
             #err = self.touchscreen.stderr.read()
             #logging.info(err)
         except Exception as e:
@@ -162,6 +288,7 @@ class Touch_Settings(plugins.Plugin):
     # IMPORTANT: If you use "POST"s, add a csrf-token (via csrf_token() and render_template_string)
     def on_webhook(self, path, request):
         # define which elements are active or not
+        # show pwny image. send clicks through
         pass
 
     # called when the plugin is loaded
@@ -171,6 +298,19 @@ class Touch_Settings(plugins.Plugin):
         # to test pimoroni displayhatmini buttons, uncomment below, or define in your config.toml
         ##if 'gpios' not in self.options:
         ##    self.options['gpios'] = {'ok': 6, 'back' : 5, 'next': 24, 'prev': 16}   # Pimoroni display hat mini
+        try:
+            self.init_gpio()
+        except Exception as e:
+            logging.warning(repr(e))
+
+        # start touch screen background thread
+        try:
+            self.init_ts_handler()
+        except Exception as e:
+            logging.warning(repr(e))
+
+        # notify plugins
+        plugins.on("touch_ready", self)
 
     # called before the plugin is unloaded
     def on_unload(self, ui):
@@ -183,8 +323,11 @@ class Touch_Settings(plugins.Plugin):
                     os.kill(self.touchscreen.pid, signal.SIGTERM)
                 logging.debug("Waiting for thread to exit")
                 self._ts_thread.join()
-                logging.debug("And its done.")
+                logging.info("And its done.")
+        except Exception as e:
+            logging.error("%s" % repr(e))
 
+        try:
             # remove UI elements
             i = 0
             for n in self._ui_elements:
@@ -193,6 +336,10 @@ class Touch_Settings(plugins.Plugin):
                 i += 1
             if i: logging.info("plugin unloaded %d elements" % i)
 
+        except Exception as e:
+            logging.error("%s" % repr(e))
+
+        try:
             if 'gpios' in self.options:
                 for i in self.options['gpios'].values():
                     logging.info("Stop detecting GPIO %s" % repr(i))
@@ -203,12 +350,17 @@ class Touch_Settings(plugins.Plugin):
 
     # called when there's internet connectivity - probably dont need this
     def on_internet_available(self, agent):
-        pass
+        if self.needsAptPackages:
+            check_output(['apt', 'install', '-y'].extend(self.needsAptPackages))
+            self.needsAptPackages = None
 
     # is this point(x,y) in box (x1, y1, x2, y2), x2>x1, y2>y1
     def pointInBox(self, point, box):
-        logging.debug("is %s in %s" % (repr(point), repr(box)))
-        return (point[0] >= box[0] and point[0] <= box[2] and point[1] >= box[1] and point[1] <= box[3])
+        try:
+            logging.debug("is %s in %s" % (repr(point), repr(box)))
+            return (point[0] >= box[0] and point[0] <= box[2] and point[1] >= box[1] and point[1] <= box[3])
+        except Exception as e:
+            logging.info(repr(e))
 
     def collect_touch_elements(self):
         # - go through plugins, and build touch_elements cache and complete array
@@ -221,31 +373,60 @@ class Touch_Settings(plugins.Plugin):
         pass
 
     def process_touch(self, tpoint, depth):
-        logging.debug("PT: %s: %s" % (repr(tpoint), repr(depth)))
+        logging.info("PT: %s: %s" % (repr(tpoint), repr(depth)))
 
         touch_data = { 'point':tpoint, 'pressure': depth }
 
         # check UI element bounding boxes and call on_touch
+        ui_elements = self._view._state._state
         touch_element = None
-        for te in self.touch_elements:
-            bbox = [] # get bounding box of the element. NOT IMPLEMENTED YET
-            if self.pointInBox(tpoint, bbox):
-                logging.info("Zone %s: %s @ %s" % (depth,
-                                                   repr(te),
-                                                   repr(tpoint)))
-                touch_element = te
-                break # stop at first match
-
-        if int(depth) > 0:
-            if not self._beingTouched:
-                plugins.on("touch_press", self, self._view, touch_element, touch_data)
+        touch_elements = list(filter(lambda x: hasattr(ui_elements[x], "state"), ui_elements.keys()))
+        logging.info("Touchable: %s" % repr(touch_elements))
+        try:
+            if int(depth) > 0:
+                command = "touch_move" if self._beingTouched else "touch_press"
                 self._beingTouched = True
-            else:
-                plugins.on("touch_move", self, self._view, touch_element, touch_data)
-
-        elif int(depth) == 0:
-                plugins.on("touch_release", self, self._view, touch_element, touch_data)
+            elif int(depth) == 0:
+                command = "touch_release"
                 self._beingTouched = False
+            else:
+                command = None
+
+            for te in touch_elements:
+                logging.info("Touching %s, %s" % (te, repr(ui_elements[te].xy)))
+                if self.pointInBox(tpoint, ui_elements[te].xy):
+                    logging.debug("Touch element %s: %s @ %s" % (repr(te),
+                                                                depth,
+                                                                repr(tpoint)))
+                    touch_element = te
+                    break # stop at first match
+
+        except Exception as e:
+            logging.warn(repr(e))
+
+        if command:
+            if touch_element:
+                button = ui_elements[touch_element]
+                if button.momentary:
+                    if command == "touch_press" or command == "touch_release":
+                        self._view._state._changes[touch_element] = True
+                    button.state = self._beingTouched
+                    if reverse:
+                        button.state = not button.state
+                elif command == "touch_press":
+                    button.state = not button.state
+                    self._view._state._changes[touch_element] = True
+
+                if hasattr(ui_elements[touch_element], 'event_handler'):
+                    logging.info("UI_Element %s Command: %s, handler: %s, data: %s" % (touch_element, command, ui_elements[touch_element].event_handler, repr(touch_data)))
+                    plugins.one(ui_elements[touch_element].event_handler, command, self, self._view, touch_element, touch_data)
+                else:
+                    logging.info("UI_Element %s Command: %s, handler: %s, data: %s" % (touch_element, command, ui_elements[touch_element].event_handler, repr(touch_data)))
+                    plugins.on(command, self, self._view, touch_element, touch_data)
+
+            else:
+                logging.debug("Touch Command: %s, data: %s" % (command, repr(touch_data)))
+                plugins.on(command, self, self._view, touch_element, touch_data)
 
     # button handlers to cycle through touch areas and click
     # just detect clicks for now, NOT IMPLEMENTED YET
@@ -314,6 +495,7 @@ class Touch_Settings(plugins.Plugin):
     def on_ready(self, agent):
         self._agent = agent    # save for posterity
 
+    def init_gpio(self):
         # set up GPIO - next, previous, ok, back
         if 'gpios' in self.options:
             GPIO.setmode(GPIO.BCM)
@@ -346,22 +528,22 @@ class Touch_Settings(plugins.Plugin):
                 except Exception as err:
                     logging.warning("Prev button: %s" % repr(err))
 
+    def init_ts_handler(self):
         # start touchscreen handler thread
         try:
+            logging.debug("starting ts_print thread")
             self._ts_thread = threading.Thread(target=self.touchScreenHandler, args=(), daemon=True)
             if not self._ts_thread:
                 logging.info("Thread failed?")
 
             #self.touchScreenHandler()
-            logging.info("starting ts_print thread")
+            logging.debug("starting ts_print thread")
             self._ts_thread.start()
             logging.info("started thread")
 
             logging.info("unit is ready")
         except Exception as e:
             logging.error(repr(e))
-
-        plugins.on("touch_ready", self)
 
     # called to setup the ui elements
     def on_ui_setup(self, ui):
@@ -392,8 +574,8 @@ if __name__ == "__main__":
     #handler.setFormatter(formatter)
     #root.addHandler(handler)    
     
-    ts = Touch_Settings()
+    ts = Touch_Screen()
 
-    ts.touchScreenHandler()
+    #ts.touchScreenHandler()
 
     ts.okButtonPress(69)

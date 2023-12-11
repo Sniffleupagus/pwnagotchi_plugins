@@ -142,7 +142,7 @@ class MorseCode(plugins.Plugin):
         self._keep_going = True
         self._event = Event()
         self._message = None
-        self._led_file = "/sys/class/leds/led0/brightness"
+        self._led_file = "/sys/class/leds/ACT/brightness"
         self._delay = 200
 
 
@@ -160,7 +160,10 @@ class MorseCode(plugins.Plugin):
 
             self.logger.info("[Morse] loaded %s" % repr(self.options))
 
-            for k,v in {'led': 0, 'delay' : 200, 'invert': True, 'leaveOn': False}.items():
+            for k,v in {'led': "/sys/class/leds/ACT/brightness",
+                        'delay' : 200,
+                        'invert': True,
+                        'leaveOn': False}.items():
                 if k not in self.options:
                     self.options[k] = v
 

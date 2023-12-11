@@ -1,14 +1,22 @@
 import logging
-import os, time
+import os, time, sys
 import html
 import json
 
 import pwnagotchi.plugins as plugins
-from pwnagotchi.ui.components import LabeledValue, Text, Line
+from pwnagotchi.ui.components import *
 from pwnagotchi.ui.view import BLACK
 from PIL import ImageFont
 import pwnagotchi.ui.fonts as fonts
 import pwnagotchi.utils as utils
+
+try:
+    sys.path.append(os.path.dirname(__file__))    
+    from Touch_UI import Touch_Button as Button
+except Exception as e:
+    logging.warn(repr(e))
+
+from textwrap import TextWrapper
 
 from flask import abort
 from flask import render_template_string
@@ -104,7 +112,7 @@ class Tweak_View(plugins.Plugin):
                 #prefix = " " * len(prefix)
                 #name = " " * len(name)
             res += "</ul>"
-        elif type(item) in (Text, LabeledValue, Line):
+        elif isinstance(item, Widget):
             res += "<b>%s:</b> %s\n<ul>" % (html.escape(str(type(item).__name__)), name)
             try:
                 for key in dir(item):
@@ -152,7 +160,7 @@ class Tweak_View(plugins.Plugin):
                         pass
                     else:
                         self._logger.debug("%s>>> %s:%s" % (prefix, key, html.escape(str(type(getattr(item, key))))))
-                        res += "<li>%s%s.%s = %s %s\n" % (prefix, name, key, html.escape("<"+ str(type(val).__name__) + ">"), html.escsape(repr(val)))
+                        res += "<li>%s%s.%s = %s %s\n" % (prefix, name, key, html.escape("<"+ str(type(val).__name__) + ">"), html.escape(repr(val)))
                         #res += self.dump_item("%s" % (key), repr(getattr(item, key), "%s%s." % (prefix, name)) + "\n"
                 res += "</ul>"
             except Exception as inst:
@@ -369,6 +377,7 @@ class Tweak_View(plugins.Plugin):
                         self._logger.debug ("Loaded tweak %s -> %s" % (i, self._tweaks[i]))
 
             self._already_updated = []
+            self._logger.info("Tweak view loaded.")
 
         except Exception as err:
             self._logger.warn("TweakUI loading failed: %s" % repr(err))
@@ -451,7 +460,9 @@ class Tweak_View(plugins.Plugin):
                         elif key == "label_spacing":
                             ui._state._state[element].label_spacing = int(value)
                         elif key == "max_length":
-                            ui._state._state[element].max_length = int(value)
+                            uie = ui._state._state[element]
+                            uie.max_length = int(value)
+                            uie.wrapper = TextWrapper(width=int(value), replace_whitespace=False) if uie.wrap else None
                         if element not in updated:
                             updated.append(element)
                     elif element in self._already_updated and not element in state:
