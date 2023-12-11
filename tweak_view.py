@@ -112,7 +112,7 @@ class Tweak_View(plugins.Plugin):
                 #prefix = " " * len(prefix)
                 #name = " " * len(name)
             res += "</ul>"
-        elif type(item) in (Text, LabeledValue, Line, Button):
+        elif isinstance(item, Widget):
             res += "<b>%s:</b> %s\n<ul>" % (html.escape(str(type(item).__name__)), name)
             try:
                 for key in dir(item):
