@@ -37,7 +37,7 @@ class MorseCode(plugins.Plugin):
                         '1':'.----', '2':'..---', '3':'...--',
                         '4':'....-', '5':'.....', '6':'-....',
                         '7':'--...', '8':'---..', '9':'----.',
-                        '0':'-----', ', ':'--..--', '.':'.-.-.-',
+                        '0':'-----', ',':'--..--', '.':'.-.-.-',
                         '?':'..--..', '/':'-..-.', '-':'-....-',
                         '(':'-.--.', ')':'-.--.-'}
 
@@ -294,13 +294,19 @@ class MorseCode(plugins.Plugin):
         pass
 
     # called when the agent is sending an association frame
-    def on_association(self, agent, access_point):
-        self._queue_message("ASSOC")
-        pass
+    def on_association(self, agent, ap):
+        if 'hostname' in ap and not ap['hostname'] == '' and not ap['hostname'] == '<hidden>':
+            self._queue_message("ASSOC %s" % ap['hostname'])
+        else:
+            self._queue_message("ASSOC")
 
     # called when the agent is deauthenticating a client station from an AP
-    def on_deauthentication(self, agent, access_point, client_station):
-        self._queue_message("PWNED")
+    def on_deauthentication(self, agent, ap, cl):
+        logging.info(repr(cl))
+        if 'hostname' in cl and not cl['hostname'] == '' and not cl['hostname'] == '<hidden>':
+            self._queue_message("KICK %s" % cl['hostname'])
+        else:
+            self._queue_message("KICK")
         pass
 
     # callend when the agent is tuning on a specific channel
@@ -309,8 +315,11 @@ class MorseCode(plugins.Plugin):
 
     # called when a new handshake is captured, access_point and client_station are json objects
     # if the agent could match the BSSIDs to the current list, otherwise they are just the strings of the BSSIDs
-    def on_handshake(self, agent, filename, access_point, client_station):
-        self._queue_message("HI FRIEND")
+    def on_handshake(self, agent, filename, ap, cl):
+        if 'hostname' in ap and not ap['hostname'] == '' and not ap['hostname'] == '<hidden>':
+            self._queue_message("PWND %s" % ap['hostname'])
+        else:
+            self._queue_message("PWND")
         pass
 
     # called when an epoch is over (where an epoch is a single loop of the main algorithm)
