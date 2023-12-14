@@ -358,6 +358,14 @@ class Tweak_View(plugins.Plugin):
     # called when everything is ready and the main loop is about to start
     def on_ready(self, agent):
         self._agent = agent
+
+        self.myFonts = {"Small": fonts.Small,
+                   "BoldSmall": fonts.BoldSmall,
+                   "Medium": fonts.Medium,
+                   "Bold": fonts.Bold,
+                   "BoldBig": fonts.BoldBig,
+                   "Huge": fonts.Huge
+        }
         
         # just for kicks
         for p in [6, 7, 8, 9, 10, 11, 12, 14, 16, 18, 20, 24, 25, 28, 30, 35, 42, 69]:
@@ -374,10 +382,10 @@ class Tweak_View(plugins.Plugin):
                 with open(self._conf_file, 'r') as f:
                     self._tweaks = json.load(f)
                     for i in self._tweaks:
-                        self._logger.debug ("Loaded tweak %s -> %s" % (i, self._tweaks[i]))
+                        self._logger.debug ("Ready tweak %s -> %s" % (i, self._tweaks[i]))
 
             self._already_updated = []
-            self._logger.info("Tweak view loaded.")
+            self._logger.info("Tweak view ready.")
 
         except Exception as err:
             self._logger.warn("TweakUI loading failed: %s" % repr(err))
@@ -449,11 +457,14 @@ class Tweak_View(plugins.Plugin):
                         elif key == "text_font":
                             if value in self.myFonts:
                                 ui._state._state[element].text_font = self.myFonts[value]
+                        elif key == "alt_font":
+                            if value in self.myFonts:
+                                ui._state._state[element].alt_font = self.myFonts[value]
                         elif key == "label_font":
                             if value in self.myFonts:
                                 ui._state._state[element].label_font = self.myFonts[value]
                         elif key == "color":
-                            logging.info("Color: %s = %s" % (element, value))
+                            logging.debug("Color: %s = %s" % (element, value))
                             ui._state._state[element].color = value
                         elif key == "label":
                             ui._state._state[element].label = value
