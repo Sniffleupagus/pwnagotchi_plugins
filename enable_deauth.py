@@ -86,7 +86,7 @@ class enable_deauth(plugins.Plugin):
             else:
                 pos = (0,36,30,59)
 
-            if True:
+            try:
                 ui.add_element('deauth_count', Touch_Button(position=pos,
                                                             color='#ddddff', alt_color='White', outline='DarkGray',
                                                             state=False, # agent._config['personality']['deauth'],
@@ -97,7 +97,7 @@ class enable_deauth(plugins.Plugin):
                                                             event_handler="enable_deauth"
                                                             )
                                )
-            else:
+            except Exception:
                 ui.add_element('deauth_count', LabeledValue(color=BLACK, label='A', value='0', position=pos,
                                                            label_font=fonts.BoldSmall, text_font=fonts.Small))
         except Exception as err:

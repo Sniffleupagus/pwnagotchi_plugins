@@ -104,9 +104,8 @@ class enable_assoc(plugins.Plugin):
                                                        )
                            )
         except Exception as e:
-            logging.warn(repr(e))
-        #ui.add_element('assoc_count', LabeledValue(color=BLACK, label='A', value='0', position=pos,
-        #                                           label_font=fonts.BoldSmall, text_font=fonts.Small))
+            ui.add_element('assoc_count', LabeledValue(color=BLACK, label='A', value='0', position=pos,
+                                                       label_font=fonts.BoldSmall, text_font=fonts.Small))
 
         # called when the ui is updated
     def on_ui_update(self, ui):
