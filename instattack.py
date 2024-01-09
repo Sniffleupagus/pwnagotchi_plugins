@@ -47,16 +47,30 @@ class instattack(plugins.Plugin):
 
     def on_bcap_wifi_ap_new(self, agent, event):
         try:
-            if agent._config['personality']['associate']:            
-                logging.info("insta-associate: %s (%s)" % (event['data']['hostname'], event['data']['mac']))
-                agent.associate(event['data'], 0.3)
+            if not agent._config['personality']['associate']:
+                return
+
+            if event['data']['hostname'] in agent._config['main']['whitelist']:
+                logging.info(f"insta-associate: Excluded AP seen: {event['data']['hostname']}. Not associating.")
+                return
+
+            logging.info("insta-associate: %s (%s)" % (event['data']['hostname'], event['data']['mac']))
+            agent.associate(event['data'], 0.3)
+
         except Exception as e:
             logging.error(repr(e))
 
     def on_bcap_wifi_client_new(self, agent, event):
         try:
-            if agent._config['personality']['deauth']:            
-                logging.info("insta-deauth: %s (%s)->'%s'(%s)(%s)" % (event['data']['AP']['hostname'], event['data']['AP']['mac'], event['data']['Client']['hostname'], event['data']['Client']['mac'], event['data']['Client']['vendor']))
-                agent.deauth(event['data']['AP'], event['data']['Client'], 0.75)
+            if not agent._config['personality']['deauth']:
+                return
+
+            if event['data']['AP']['hostname'] in agent._config['main']['whitelist']:
+                logging.info(f"insta-deauth: Client found on excluded AP: {event['data']['AP']['hostname']}. Not deauthing.")
+                return
+
+            logging.info("insta-deauth: %s (%s)->'%s'(%s)(%s)" % (event['data']['AP']['hostname'], event['data']['AP']['mac'], event['data']['Client']['hostname'], event['data']['Client']['mac'], event['data']['Client']['vendor']))
+            agent.deauth(event['data']['AP'], event['data']['Client'], 0.75)
+
         except Exception as e:
             logging.error(repr(e))
