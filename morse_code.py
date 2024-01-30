@@ -12,6 +12,11 @@ import os
 import subprocess
 import time
 
+try:
+    import prctl
+except:
+    pass
+
 import pwnagotchi.plugins as plugins
 from pwnagotchi.ui.components import LabeledValue
 from pwnagotchi.ui.view import BLACK
@@ -115,6 +120,11 @@ class MorseCode(plugins.Plugin):
             fp.write(str(on))
 
     def _worker(self):
+        try:
+            prctl.set_name("morse operator")
+        except:
+            pass
+
         while self._keep_going:
             time.sleep(1)
             self._event.wait()
