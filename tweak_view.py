@@ -14,7 +14,8 @@ try:
     sys.path.append(os.path.dirname(__file__))    
     from Touch_UI import Touch_Button as Button
 except Exception as e:
-    logging.warn(repr(e))
+    pass
+    #logging.warn(repr(e))
 
 from textwrap import TextWrapper
 
@@ -359,37 +360,6 @@ class Tweak_View(plugins.Plugin):
     def on_ready(self, agent):
         self._agent = agent
 
-        self.myFonts = {"Small": fonts.Small,
-                   "BoldSmall": fonts.BoldSmall,
-                   "Medium": fonts.Medium,
-                   "Bold": fonts.Bold,
-                   "BoldBig": fonts.BoldBig,
-                   "Huge": fonts.Huge
-        }
-        
-        # just for kicks
-        for p in [6, 7, 8, 9, 10, 11, 12, 14, 16, 18, 20, 24, 25, 28, 30, 35, 42, 69]:
-            self.myFonts["Deja %s" % p] = ImageFont.truetype('DejaVuSansMono', p)  
-            self.myFonts["DejaB %s" % p] = ImageFont.truetype('DejaVuSansMono-Bold', p)     
-            self.myFonts["DejaO %s" % p] = ImageFont.truetype('DejaVuSansMono-Oblique', p)
-
-        # load a config file... /etc/pwnagotchi/tweak_view.json for default
-        self._conf_file = self.options["filename"] if "filename" in self.options else "/etc/pwnagotchi/tweak_view.json"
-
-        
-        try:
-            if os.path.isfile(self._conf_file):
-                with open(self._conf_file, 'r') as f:
-                    self._tweaks = json.load(f)
-                    for i in self._tweaks:
-                        self._logger.debug ("Ready tweak %s -> %s" % (i, self._tweaks[i]))
-
-            self._already_updated = []
-            self._logger.info("Tweak view ready.")
-
-        except Exception as err:
-            self._logger.warn("TweakUI loading failed: %s" % repr(err))
-
 
     # called before the plugin is unloaded
     def on_unload(self, ui):
@@ -420,6 +390,37 @@ class Tweak_View(plugins.Plugin):
     # look at config. Move items around as desired
     def on_ui_setup(self, ui):
         self._ui = ui
+
+        self.myFonts = {"Small": fonts.Small,
+                   "BoldSmall": fonts.BoldSmall,
+                   "Medium": fonts.Medium,
+                   "Bold": fonts.Bold,
+                   "BoldBig": fonts.BoldBig,
+                   "Huge": fonts.Huge
+        }
+
+        # include lots more sizes
+        for p in [6, 7, 8, 9, 10, 11, 12, 14, 16, 18, 20, 24, 25, 28, 30, 35, 42, 48, 52, 54, 60, 69, 72, 80, 90, 100, 120]:
+            self.myFonts["Deja %s" % p] = ImageFont.truetype('DejaVuSansMono', p)
+            self.myFonts["DejaB %s" % p] = ImageFont.truetype('DejaVuSansMono-Bold', p)
+            self.myFonts["DejaO %s" % p] = ImageFont.truetype('DejaVuSansMono-Oblique', p)
+
+        # load a config file... /etc/pwnagotchi/tweak_view.json for default
+        self._conf_file = self.options["filename"] if "filename" in self.options else "/etc/pwnagotchi/tweak_view.json"
+
+        try:
+            if os.path.isfile(self._conf_file):
+                with open(self._conf_file, 'r') as f:
+                    self._tweaks = json.load(f)
+                    for i in self._tweaks:
+                        self._logger.debug ("Ready tweak %s -> %s" % (i, self._tweaks[i]))
+
+            self._already_updated = []
+            self._logger.info("Tweak view ready.")
+
+        except Exception as err:
+            self._logger.warn("TweakUI loading failed: %s" % repr(err))
+
         try:
             self.update_elements(ui)
         except Exception as err:
