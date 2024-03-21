@@ -94,6 +94,8 @@ class MeshPWNstic(plugins.Plugin):
     # on node info update
     def onNodeUpdated(self, node, interface):
         try:
+            if self.interface == None:
+                self.interface = interface
             logging.debug("Node update %s === %s" % (repr(node), repr(interface)))
             if 'num' in node and 'user' in node:
                 if not node['num'] in self.nodes:
@@ -107,13 +109,13 @@ class MeshPWNstic(plugins.Plugin):
 
     def addConsole(self, msg):
         try:
-            logging.info("console: %s" % msg)
+            logging.debug("console: %s" % msg)
             now = datetime.now().strftime('%X')
             self.console.insert(0, '%s %s' % (now, msg))
 
             if len(self.console) > self.options['showLines']:
                 m = self.console.pop()
-                logging.info("Removed %s" % m)
+                logging.debug("Removed %s" % m)
                 
         except Exception as e:
             logging.exception(repr(e))
@@ -203,15 +205,19 @@ class MeshPWNstic(plugins.Plugin):
                         p_lat = position['latitude']
                     elif 'latitudeI' in position:
                         p_lat = position['latitudeI']/10000000.0
+                    elif self.myLastPosition and 'latitude' in self.myLastPosition:
+                        p_lat = self.myLastPosition['latitude']
                     else:
-                        p_lat = ''
+                        p_lat = 0
                         
                     if 'longitude' in position:
                         p_lon = position['longitude']
                     elif 'longitudeI' in position:
                         p_lon = position['longitudeI']/10000000.0
+                    elif self.myLastPosition and 'longitude' in self.myLastPosition:
+                        p_lon = self.myLastPosition['longitude']
                     else:
-                        p_lon = ''
+                        p_lon = 0
                         
                     p_alt = position['altitude'] if 'altitude' in position else '--'
                     self.positions[p_from] = position
@@ -226,7 +232,7 @@ class MeshPWNstic(plugins.Plugin):
                             if 'altitude' in position:
                                 self._ui.set('meshpwnstic_alt', "%s" % position['altitude'])
 
-                        p_dist = ''
+                        p_dist = 0
                         sname = '>me<'
                     elif self.myNode != None and 'num' in self.myNode and self.myNode['num'] in self.positions:
                         mypos = self.positions[self.myNode['num']]
@@ -235,13 +241,21 @@ class MeshPWNstic(plugins.Plugin):
                         mypos = self.myNode['position']
                         if 'latitude' in mypos:
                             p_dist = ', %0.2f mi' % distance.distance((mypos['latitude'], mypos['longitude']), (position['latitude'], position['longitude'])).miles
+                        elif 'latitudeI' in mypos:
+                            mypos['latitude'] = mypos['latitudeI']/10000000.0
+                            mypos['longitude'] = mypos['longitudeI']/10000000.0
+                            p_dist = ', %0.2f mi' % distance.distance((mypos['latitude'], mypos['longitude']), (position['latitude'], position['longitude'])).miles
                         else:
                             p_dist = ''
                     else:
                         p_dist = ''
-                    logging.info("POSITION of %s: %s, %s @ %s%s" % (sname, p_lat, p_lon, p_alt, p_dist))
+                    try: 
+                        logging.info("POSITION of %s: %-4.4f, %-4.4f @ %s%s" % (sname, p_lat, p_lon, p_alt, p_dist))
+                        self.status = "%s @ %-4.4f, %-4.4f - %s" % (sname, p_lat, p_lon, p_alt)
+                    except ValueError:
+                        logging.info("POSITION of %s: %-4.4f, %-4,4f @ %s%s" % (sname, p_lat, p_lon, p_alt, p_dist))
+                        self.status = "%s @ %s, %s - %s" % (sname, p_lat, p_lon, p_alt)
 
-                    self.status = "%s @ %s, %s - %s" % (sname, p_lat, p_lon, p_alt)
                     self.addConsole(self.status)
                 elif portnum == 'NODEINFO_APP':
                     if 'user' in packet:
@@ -375,7 +389,7 @@ class MeshPWNstic(plugins.Plugin):
     def on_loaded(self):
         logging.info("MeshPWNstic options = %s" % self.options)
         try:
-            if not 'host' in self.options:
+            if not 'host' in self.options and not 'port' in self.options:
                 self.options['host'] = "127.0.0.1"
 
             if not 'showLines' in self.options:
@@ -443,7 +457,7 @@ class MeshPWNstic(plugins.Plugin):
     def on_ui_update(self, ui):
         # update those elements
         if self.status != "":
-            ui.set('status', self.status)
+            #ui.set('status', self.status)
             self.status = ""
             
         if self.options['showLines'] > 0:
@@ -478,8 +492,8 @@ class MeshPWNstic(plugins.Plugin):
                 logging.info("Connecting to device on host %s" % (options['host']))
                 self.interface = meshtastic.tcp_interface.TCPInterface(options['host'])
             elif 'serial' in options:
-                logging.info("Connecting to device at port %" % (options['serial']))
-                self.interface = meshtastic.serial_interface.SerialInterface(args.port)
+                logging.info("Connecting to device at port %s" % (options['serial']))
+                self.interface = meshtastic.serial_interface.SerialInterface(options['serial'])
             else:
                 logging.info("Finding Meshtastic device",2)
                 self.interface = meshtastic.serial_interface.SerialInterface()
@@ -489,8 +503,8 @@ class MeshPWNstic(plugins.Plugin):
             self.myNode = self.interface.getMyNodeInfo()
             logging.info("My node: %s" % repr(self.myNode))
 
+
             if self.interface != None:
-                self.myNode = self.interface.getMyNodeInfo()
                 if self.myNode != None and 'user' in self.myNode:
                     mynum = self.myNode['num']
                     user = self.myNode['user']
