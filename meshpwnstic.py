@@ -22,7 +22,7 @@ from pwnagotchi.ui.components import Text,LabeledValue
 from pwnagotchi.ui.view import BLACK
 import pwnagotchi.ui.fonts as fonts
 
-import time
+import glob
 
 from pwnagotchi import restart
 import pwnagotchi.plugins as plugins
@@ -306,9 +306,60 @@ class MeshPWNstic(plugins.Plugin):
                 (key, val) = args.split('=', 1)
                 key = key.strip()
                 val = val.strip()
-                logging.info("set %s to %s" % (key, val))
+                logging.info("set %s to %s" % (key, val))                
             elif cmd == 'echo':
                 self.interface.sendText(args, destinationId=sid)
+            elif cmd == 'plugin':
+                if args == '':
+                    # help
+                    self.interface.sendText("/plugin list|(enable|disable [plugin_name])", destinationId=sid)
+                elif args.startswith('li'):
+                    plugs = ",".join(plugins.loaded.keys())
+                    logging.info("Loaded plugins: %s" % plugs)
+                elif args.startswith('enable') or args.startswith('disable'):
+                    (cmd, plug) = args.split(' ', 1)
+                    logging.info("%sing %s" % (cmd[:-1], plug))
+                    if plugins.toggle_plugin(plug, cmd == 'enable'):
+                        self.interface.sendText("%s %sd" % (plug, cmd))
+                    else:
+                        self.interface.sendText("%s not %sd" % (plug, cmd))
+                    logging.info("%s %sd" % (plug, cmd))
+                elif args.startswith('toggle'):
+                    (cmd, plug) = args.split(' ', 1)
+                    logging.info("%sing %s" % (cmd[:-1], plug))
+                    if plugins.toggle_plugin(plug, enable=False):
+                        logging.info("%s disabled" % (plug))
+                        time.sleep(1)
+                        if plugins.toggle_plugin(plug, enable=True):
+                            logging.info("%s re-enabled" % (plug))
+                            self.interface.sendText("%s re-enabled" % (plug))
+                        else:
+                            logging.info("%s not re-enabled" % (plug))
+                            self.interface.sendText("%s re-enabled" % (plug))
+                    else:
+                        logging.info("%s not %sd" % (plug, cmd))
+                        self.interface.sendText("%s not %sd" % (plug, cmd))
+                    logging.info("%s %sd" % (plug, cmd))
+                    
+                elif args.startswith('refresh'):
+                    # refresh from custom directory to see if new plugins
+                    new_plugs = ''
+                    if 'custom_plugins' in self._agent._config['main']:
+                        path = self._agent._config['main']['custom_plugins']
+                        logging.info("loading plugins from %s" % (path))
+                        for filename in glob.glob(os.path.join(path, "*.py")):
+                            plugin_name = os.path.basename(filename.replace(".py", ""))
+                            if not plugin_name in plugins.database:
+                                logging.info("New plugin: %s" % (plugin_name))
+                                plugins.database[plugin_name] = filename
+                                new_plugs += ",%s" % plugin_name
+                        if new_plugs != '':
+                            self.interface.sendText("found new:%s" % (new_plugs), destinationId=sid)
+                        else:
+                            self.interface.sendText("ok", destinationId=sid)
+                    else:
+                        self.interface.sendText("no custom path", destinationId=sid)
+
             elif cmd == 'deauth' or cmd.startswith('assoc'):
                 if cmd.startswith('assoc'):   # sanitize input
                     cmd = 'associate'
@@ -419,7 +470,7 @@ class MeshPWNstic(plugins.Plugin):
             pub.unsubAll()
 
             time.sleep(3)
-            logging.info("unloading")
+            logging.info("meshpwnstic unloading")
         except Exception as e:
             logging.exception(repr(e))
 
