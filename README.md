@@ -77,6 +77,27 @@ main.plugins.gps_more.save_file = "/root/gpstracks/%Y/gps_more_%Y%m%d.gps.json"<
 <code>save_file</code> is processed by <code>strftime()</code>, so you can have a file per day, month, whatever. Also saves fixed with handshake
 files like the original.
 
+# meshpwnstic.py
+
+Remote control and update pwnagotchi over Meshtastic LoRa network. This requires the meshtastic python library, install with: <code> pip3 install meshtastic</code>. By default, it connects to an instance of meshtastic running on the same raspberry pi as pwnagotchi. You can specify a different host, or a serial port in configuration, for example
+<code>main.plugins.meshpwnstic.host = "127.0.0.1"
+main.plugins.meshpwnstich.port = "/dev/ttyS0"
+</code> 
+But that has not been tested. 
+
+The plugin does not configure the meshtastic node. You should set it up using a different client before having pwnagotchi connect to it. Messages are broadcast on the default channel, or sometimes as replies to direct messages. I strongly suggest changing your primary to a private channel if you are going to use this to not annoy people.
+
+You can send commands to the pwnagotchi:
+
+- "/echo blah blah" send back whatever you tell it to echo. 
+- "/deauth [on/off]" will turn deauths on or off. With no option, it will return state and number of deauths in this session.
+- "/assoc [on/off]" similar for association.
+- "/bcap bettercap command" will run the command on bettercap and return the result in a message (maybe to the channel). Examples, "/bcap wifi.clear", "/bcap wifi.recon on", etc.
+- "/status" will send uptime, and some stats.
+- "/restart [manu]" will restart pwnagotchi in auto unless specified.
+
+Meshpwnstic understands most messages that are sent over the radios. It will display a console showing the last few messages, configurable as option "showLines". Probably better suited to bigger screens. Unknown messages are not displayed, but will show in the log file. Meshpwnstic makes a lot of log messages if you have a lot of radio traffic.
+
 # miyagi.py
 
 Mr. Miyagi trained the Karate Kid. Miyagi.py trains pwnagotchis. When the plugin is loaded (manually or when pwnagotchi starts up), if laziness if high (> 0.9), it will drop it to 0.5 to increase likelihood of entering a training session. At the start of training, Miyagi moves brain.nn to brain.nn.bak, backing up the brain, in case of failure. During training, Miyagi updates the MODE display to let you know how many epochs of training have happened in the session. A standard session lasts 50 epochs. At the end of the 50 epochs, laziness will be increased slightly, to slowly reduce the amount of training over time.<p>
