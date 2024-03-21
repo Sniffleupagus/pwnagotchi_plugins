@@ -389,11 +389,12 @@ class MeshPWNstic(plugins.Plugin):
     def on_loaded(self):
         logging.info("MeshPWNstic options = %s" % self.options)
         try:
-            if not 'host' in self.options and not 'port' in self.options:
+            if not 'host' in self.options and not 'serial' in self.options:
+                logging.info("Defaulting to localhost")
                 self.options['host'] = "127.0.0.1"
 
             if not 'showLines' in self.options:
-                self.options['showLines'] = 5
+                self.options['showLines'] = 3
         
         except Exception as e:
             logging.exception("Meshtastic onload: %s" % repr(e))
@@ -402,8 +403,6 @@ class MeshPWNstic(plugins.Plugin):
     def on_unload(self, ui):
         try:
             self.keepGoing = False
-            logging.info("unloading")
-            pub.unsubAll()
 
             # remove UI elements
             i = 0
@@ -415,6 +414,12 @@ class MeshPWNstic(plugins.Plugin):
 
             if self.interface:
                 self.interface.close()
+                logging.info("meshtastic closed")
+
+            pub.unsubAll()
+
+            time.sleep(3)
+            logging.info("unloading")
         except Exception as e:
             logging.exception(repr(e))
 
@@ -492,7 +497,7 @@ class MeshPWNstic(plugins.Plugin):
                 logging.info("Connecting to device on host %s" % (options['host']))
                 self.interface = meshtastic.tcp_interface.TCPInterface(options['host'])
             elif 'serial' in options:
-                logging.info("Connecting to device at port %s" % (options['serial']))
+                logging.info("Connecting to device at serial port %s" % (options['serial']))
                 self.interface = meshtastic.serial_interface.SerialInterface(options['serial'])
             else:
                 logging.info("Finding Meshtastic device",2)
