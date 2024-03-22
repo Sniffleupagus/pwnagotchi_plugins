@@ -43,6 +43,7 @@ class MeshPWNstic(plugins.Plugin):
         self.TotalNodes = 0
         self._ui_elements = []       # keep track of UI elements created in on_ui_setup for easy removal in on_unload
         self.status = ""
+        self.connected = False
         
         self.myNode = None
         self.nodes = {}
@@ -77,6 +78,7 @@ class MeshPWNstic(plugins.Plugin):
         try:
             logging.info("Connected: %s, %s, %s" % (repr(self), repr(interface), repr(topic)))
             logging.info("MeshPWNstic Connected")
+            self.connected = True
             self.status = "Connected to meshtastic"
             self.addConsole(self.status)
         except Exception as e:
@@ -87,8 +89,12 @@ class MeshPWNstic(plugins.Plugin):
         try:
             logging.info("Conn Lost: %s, %s, %s" % (repr(self), repr(interface), repr(topic)))
             logging.info("MeshPWNstic Connection Lost")
+            self.connected = False
             self.status = "Meshtastic connection lost"
             self.addConsole(self.status)
+            time.sleep(3)
+            if interface != None:
+                interface.connect()
         except Exception as e:
             logging.exception("Conn Lost: %s" % repr(e))
 
@@ -206,19 +212,21 @@ class MeshPWNstic(plugins.Plugin):
                         p_lat = position['latitude']
                     elif 'latitudeI' in position:
                         p_lat = position['latitudeI']/10000000.0
-                    elif self.myLastPosition and 'latitude' in self.myLastPosition:
-                        p_lat = self.myLastPosition['latitude']
+                        position['latitude'] = p_lat
+                    #elif self.myLastPosition and 'latitude' in self.myLastPosition:
+                    #    p_lat = self.myLastPosition['latitude']
                     else:
-                        p_lat = 0
+                        return
                         
                     if 'longitude' in position:
                         p_lon = position['longitude']
                     elif 'longitudeI' in position:
                         p_lon = position['longitudeI']/10000000.0
-                    elif self.myLastPosition and 'longitude' in self.myLastPosition:
-                        p_lon = self.myLastPosition['longitude']
+                        position['longitude'] = p_lon
+                    #elif self.myLastPosition and 'longitude' in self.myLastPosition:
+                    #    p_lon = self.myLastPosition['longitude']
                     else:
-                        p_lon = 0
+                        return
                         
                     p_alt = position['altitude'] if 'altitude' in position else '--'
                     self.positions[p_from] = position
@@ -465,7 +473,7 @@ class MeshPWNstic(plugins.Plugin):
                 i += 1
             if i: logging.info("plugin unloaded %d elements" % i)
 
-            if self.interface:
+            if self.interface != None:
                 self.interface.close()
                 logging.info("meshtastic closed")
 
@@ -650,8 +658,26 @@ class MeshPWNstic(plugins.Plugin):
         pass
 
     # # called when an epoch is over (where an epoch is a single loop of the main algorithm)
-    # def on_epoch(self, agent, epoch, epoch_data):
-    #     pass
+    def on_epoch(self, agent, epoch, epoch_data):
+        # if not connected, try reconnecting
+        if self.connected == False:
+            options = self.options
+        
+            if 'host' in options:
+                logging.info("Connecting to device on host %s" % (options['host']))
+                self.interface = meshtastic.tcp_interface.TCPInterface(options['host'])
+            elif 'serial' in options:
+                logging.info("Connecting to device at serial port %s" % (options['serial']))
+                self.interface = meshtastic.serial_interface.SerialInterface(options['serial'])
+            else:
+                logging.info("Finding Meshtastic device",2)
+                self.interface = meshtastic.serial_interface.SerialInterface()
+
+            logging.info("Connected to meshtastic: %s" % repr(self.interface))
+
+            self.myNode = self.interface.getMyNodeInfo()
+
+        pass
 
     # # called when a new peer is detected
     # def on_peer_detected(self, agent, peer):
