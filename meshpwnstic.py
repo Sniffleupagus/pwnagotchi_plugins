@@ -23,6 +23,7 @@ from pwnagotchi.ui.view import BLACK
 import pwnagotchi.ui.fonts as fonts
 
 import glob
+import json
 
 from pwnagotchi import restart
 import pwnagotchi.plugins as plugins
@@ -221,7 +222,8 @@ class MeshPWNstic(plugins.Plugin):
                         
                     p_alt = position['altitude'] if 'altitude' in position else '--'
                     self.positions[p_from] = position
-
+                    mypos = None
+                    p_dist = 0
                     if self.myNode != None and self.myNode['num'] in self.positions and self.myNode['num'] == p_from:
                         logging.info("Updating MY position: %s" % repr(position))
                         if 'latitude' in position and 'longitude' in position:
@@ -232,13 +234,12 @@ class MeshPWNstic(plugins.Plugin):
                             if 'altitude' in position:
                                 self._ui.set('meshpwnstic_alt', "%s" % position['altitude'])
 
-                        p_dist = 0
                         sname = '>me<'
                     elif self.myNode != None and 'num' in self.myNode and self.myNode['num'] in self.positions:
                         mypos = self.positions[self.myNode['num']]
                         p_dist = ', %0.2f mi' % distance.distance((mypos['latitude'], mypos['longitude']), (position['latitude'], position['longitude'])).miles
-                    elif self.myNode != None and 'position' in self.myNode:
-                        mypos = self.myNode['position']
+                    elif self.myLastPosition != None:
+                        mypos = self.myLastPosition
                         if 'latitude' in mypos:
                             p_dist = ', %0.2f mi' % distance.distance((mypos['latitude'], mypos['longitude']), (position['latitude'], position['longitude'])).miles
                         elif 'latitudeI' in mypos:
@@ -246,15 +247,16 @@ class MeshPWNstic(plugins.Plugin):
                             mypos['longitude'] = mypos['longitudeI']/10000000.0
                             p_dist = ', %0.2f mi' % distance.distance((mypos['latitude'], mypos['longitude']), (position['latitude'], position['longitude'])).miles
                         else:
+                            mypos = "wtf"
                             p_dist = ''
                     else:
                         p_dist = ''
                     try: 
                         logging.info("POSITION of %s: %-4.4f, %-4.4f @ %s%s" % (sname, p_lat, p_lon, p_alt, p_dist))
-                        self.status = "%s @ %-4.4f, %-4.4f - %s" % (sname, p_lat, p_lon, p_alt)
+                        self.status = "%s @ %-4.4f, %-4.4f - %s%s" % (sname, p_lat, p_lon, p_alt, p_dist)
                     except ValueError:
                         logging.info("POSITION of %s: %-4.4f, %-4,4f @ %s%s" % (sname, p_lat, p_lon, p_alt, p_dist))
-                        self.status = "%s @ %s, %s - %s" % (sname, p_lat, p_lon, p_alt)
+                        self.status = "%s @ %s, %s - %s%s" % (sname, p_lat, p_lon, p_alt, p_dist)
 
                     self.addConsole(self.status)
                 elif portnum == 'NODEINFO_APP':
@@ -559,13 +561,13 @@ class MeshPWNstic(plugins.Plugin):
             self.myNode = self.interface.getMyNodeInfo()
             logging.info("My node: %s" % repr(self.myNode))
 
-
             if self.interface != None:
                 if self.myNode != None and 'user' in self.myNode:
                     mynum = self.myNode['num']
                     user = self.myNode['user']
                     myid = user['id']
                     if 'position' in self.myNode:
+                        # convert lat/long I to decimal
                         if not 'latitude' in self.myNode['position'] and 'latitudeI' in self.myNode['position']:
                             self.myNode['position']['latitude'] = self.myNode['position']['latitudeI']/10000000.0
 
@@ -582,6 +584,7 @@ class MeshPWNstic(plugins.Plugin):
                                     self._ui.set('meshpwnstic_alt',"%s" % self.myNode['position']['altitude'])
                             except Exception as e:
                                 logging.exception(e)
+                            self.myLastPosition = self.myNode['position']
                     self.interface.sendText("%s (%s) online: %s" % (user['longName'], mynum, myid))
                     logging.info("******** %s (%s) is ready ***********" % (user['longName'], mynum))
         except Exception as e:
@@ -638,8 +641,10 @@ class MeshPWNstic(plugins.Plugin):
             if self.interface:
                 hostname = access_point['hostname'] if 'hostname' in access_point else access_point['mac']
                 clientname = client_station['hostname'] if 'hostname' in client_station else client_station['mac']
-                logging.debug("Handshake %s from %s" % (clientname, hostname))
-                self.interface.sendText("Handshake %s from %s" % (clientname, hostname))
+                msg = "PWND Handshake %s from %s" % (clientname, hostname)
+                logging.debug(msg)
+                self.interface.sendText(msg)
+                self.addConsole(msg)
         except Exception as err:
             logging.warn(repr(err))
         pass
