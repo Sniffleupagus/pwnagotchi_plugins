@@ -44,6 +44,7 @@ class MeshPWNstic(plugins.Plugin):
         self._ui_elements = []       # keep track of UI elements created in on_ui_setup for easy removal in on_unload
         self.status = ""
         self.connected = False
+        self.numConnects = 0
         
         self.myNode = None
         self.nodes = {}
@@ -79,7 +80,8 @@ class MeshPWNstic(plugins.Plugin):
             logging.info("Connected: %s, %s, %s" % (repr(self), repr(interface), repr(topic)))
             logging.info("MeshPWNstic Connected")
             self.connected = True
-            self.status = "Connected to meshtastic"
+            self.numConnects += 1
+            self.status = "Connected to mesh %d times" % self.numConnects
             self.addConsole(self.status)
         except Exception as e:
             logging.exception("Connected: %s" % repr(e))
@@ -412,13 +414,14 @@ class MeshPWNstic(plugins.Plugin):
                 try:
                     HZ = os.sysconf(os.sysconf_names['SC_CLK_TCK'])
                     status = ""
+                    status += "%d cons" % self.numConnects
                     uptimes = open('/proc/uptime').read().split()
                     status += " up %s" % (utils.secs_to_hhmmss(float(uptimes[0])))
                     process_stats = open('/proc/self/stat').read().split()
                     status += ", p %s" % utils.secs_to_hhmmss(float(uptimes[0]) - (int(process_stats[21])/HZ))
 
-                    status += ". %s(%s) APs." % (self.num_aps, self.num_aps_unfiltered)
-                    status += ". %s/%s nodepos." % (len(self.positions), len(self.nodes))
+                    status += ", %s(%s) APs" % (self.num_aps, self.num_aps_unfiltered)
+                    status += ", %s/%s nodegps" % (len(self.positions), len(self.nodes))
                     self.interface.sendText(status, destinationId=sender['num'])
                     logging.info("send back to %s: %s" % (sender['num'], status))
                 except Exception as e:
