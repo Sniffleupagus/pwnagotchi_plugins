@@ -66,6 +66,11 @@ class MeshPWNstic(plugins.Plugin):
         self._agent = None
         self._display = None
 
+
+        // save this into a config file and load at start and tell radio
+	// if no location received in config data before "connected"
+	// so i guess apply it in on_connected
+
         self.myLastPosition = None
         
         self.console = [ "--- %s ---" % datetime.now().strftime('%c') ]
@@ -90,13 +95,11 @@ class MeshPWNstic(plugins.Plugin):
     def onConnectionLost(self, interface, topic=pub.AUTO_TOPIC):
         try:
             logging.info("Conn Lost: %s, %s, %s" % (repr(self), repr(interface), repr(topic)))
-            logging.info("MeshPWNstic Connection Lost")
             self.connected = False
+            if interface != None:
+                interface.close()
             self.status = "Meshtastic connection lost"
             self.addConsole(self.status)
-            time.sleep(3)
-            if interface != None:
-                interface.connect()
         except Exception as e:
             logging.exception("Conn Lost: %s" % repr(e))
 
@@ -183,7 +186,7 @@ class MeshPWNstic(plugins.Plugin):
                         logging.info("ADMIN: %s, %s" % (repr(self), repr(packet)))
 
                 elif portnum == 'TEXT_MESSAGE_APP':
-                    logging.info("Received packet #%s: %s" % (self.TotalPackets, repr(packet)))
+                    logging.debug("Received packet #%s: %s" % (self.TotalPackets, repr(packet)))
                     msg = p_data['text']
                     logging.info("%s -> %s: %s" % (repr(sender), repr(recip), msg))
                     self.pwnyCommand(sender, recip, msg)
