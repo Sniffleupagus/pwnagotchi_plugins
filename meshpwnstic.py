@@ -67,9 +67,9 @@ class MeshPWNstic(plugins.Plugin):
         self._display = None
 
 
-        // save this into a config file and load at start and tell radio
-	// if no location received in config data before "connected"
-	// so i guess apply it in on_connected
+        # save this into a config file and load at start and tell radio
+	# if no location received in config data before "connected"
+	# so i guess apply it in on_connected
 
         self.myLastPosition = None
         
