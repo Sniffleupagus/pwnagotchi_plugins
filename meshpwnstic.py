@@ -96,8 +96,6 @@ class MeshPWNstic(plugins.Plugin):
         try:
             logging.info("Conn Lost: %s, %s, %s" % (repr(self), repr(interface), repr(topic)))
             self.connected = False
-            if interface != None:
-                interface.close()
             self.status = "Meshtastic connection lost"
             self.addConsole(self.status)
         except Exception as e:
