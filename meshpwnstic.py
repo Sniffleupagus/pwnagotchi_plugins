@@ -146,7 +146,8 @@ class MeshPWNstic(plugins.Plugin):
                     sender['num'] = p_from
                 sname = sender['longName'] if isinstance(sender, dict) and 'longName' in sender else sender
             elif p_from in self.channels:
-                sender = self.channels[p_to]
+                logging.info("Channel not person: %s" % (repr(self.channels[p_from])))
+                sender = self.channels[p_from]
                 sname = sender['name']
             else:
                 sender = p_from
