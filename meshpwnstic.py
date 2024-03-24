@@ -3,12 +3,14 @@ import logging
 import meshtastic
 import meshtastic.serial_interface
 import meshtastic.tcp_interface
-import time
-from datetime import datetime
-import traceback
+from meshtastic import paxcount_pb2
 from meshtastic.mesh_pb2 import _HARDWAREMODEL
 from meshtastic.node import Node
 from pubsub import pub
+
+import time
+from datetime import datetime
+import traceback
 import argparse
 import collections
 import sys
@@ -188,15 +190,28 @@ class MeshPWNstic(plugins.Plugin):
                     msg = p_data['text']
                     logging.info("%s -> %s: %s" % (repr(sender), repr(recip), msg))
                     self.pwnyCommand(sender, recip, msg)
+                elif portnum == 'PAXCOUNTER_APP':
+                    print("  Paxcounter Information:")
+                    message = paxcount_pb2.Paxcount()
+                    payload_bytes = packet['decoded'].get('payload', b'')
+                    message.ParseFromString(payload_bytes)
+                    print(f"    Wifi: {message.wifi}")
+                    print(f"    BLE: {message.ble}")
+                    print(f"    Uptime: {message.uptime}")
+                    self.status = 'PAX %s wifi, %s ble, %s up' % (message.wifi, message.ble, message.uptime)
+                    self.addConsole(self.status)
+
                 elif portnum == 'TELEMETRY_APP':
                     telemetry = p_data['telemetry']
-                    t_time = time.strftime("%Y-%m-%d %H:%M:%S", time.gmtime(telemetry['time']))
-                    delta = time.time() - telemetry['time']
+                    delta = -1
+                    if 'time' in telementry:
+                        t_time = time.strftime("%Y-%m-%d %H:%M:%S", time.gmtime(telemetry['time']))
+                        delta = time.time() - telemetry['time']
 
-                    if self.avgPing == None:
-                        self.avgPing = delta
-                    else:
-                        self.avgPing = (99.0 * self.avgPing + delta) / 100.0
+                        if self.avgPing == None:
+                            self.avgPing = delta
+                        else:
+                            self.avgPing = (99.0 * self.avgPing + delta) / 100.0
                     
                     if 'deviceMetrics' in telemetry:
                         logging.info("TELE from %s, ping %0.2f (%0.2f avg) Device Metrics: %s" % (sname, float(delta), self.avgPing, repr(telemetry['deviceMetrics'])))
@@ -423,8 +438,8 @@ class MeshPWNstic(plugins.Plugin):
 
                     status += ", %s(%s) APs" % (self.num_aps, self.num_aps_unfiltered)
                     status += ", %s/%s nodegps" % (len(self.positions), len(self.nodes))
-                    self.interface.sendText(status, destinationId=sender['num'])
                     logging.info("send back to %s: %s" % (sender['num'], status))
+                    self.interface.sendText(status, destinationId=sender['num'])
                 except Exception as e:
                     logging(e)
             elif cmd == 'restart':
