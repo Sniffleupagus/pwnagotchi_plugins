@@ -204,7 +204,7 @@ class MeshPWNstic(plugins.Plugin):
                 elif portnum == 'TELEMETRY_APP':
                     telemetry = p_data['telemetry']
                     delta = -1
-                    if 'time' in telementry:
+                    if 'time' in telemetry:
                         t_time = time.strftime("%Y-%m-%d %H:%M:%S", time.gmtime(telemetry['time']))
                         delta = time.time() - telemetry['time']
 
