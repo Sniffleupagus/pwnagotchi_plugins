@@ -3,7 +3,7 @@ import logging
 import meshtastic
 import meshtastic.serial_interface
 import meshtastic.tcp_interface
-from meshtastic import paxcount_pb2
+from meshtastic import paxcount_pb2, mesh_pb2, storeforward_pb2
 from meshtastic.mesh_pb2 import _HARDWAREMODEL
 from meshtastic.node import Node
 from pubsub import pub
@@ -86,10 +86,12 @@ class MeshPWNstic(plugins.Plugin):
         try:
             logging.info("Connected: %s, %s, %s" % (repr(self), repr(interface), repr(topic)))
             logging.info("MeshPWNstic Connected")
-            self.connected = True
             self.numConnects += 1
-            self.status = "Connected to mesh %d times" % self.numConnects
-            self.addConsole(self.status)
+            if self.numConnects > 1:   # only notify on reconnects, not first time
+                self.status = "Connected to mesh %d times" % self.numConnects
+                self.addConsole(self.status)
+                interface.sendText(self.status)
+            self.connected = True
         except Exception as e:
             logging.exception("Connected: %s" % repr(e))
 
@@ -100,14 +102,17 @@ class MeshPWNstic(plugins.Plugin):
             self.connected = False
             self.status = "Meshtastic connection lost"
             self.addConsole(self.status)
+            if self.interface != None:
+                del self.interface
+                self.interface = None
         except Exception as e:
             logging.exception("Conn Lost: %s" % repr(e))
 
     # on node info update
     def onNodeUpdated(self, node, interface):
         try:
-            if self.interface == None:
-                self.interface = interface
+            #if self.interface == None:
+            #    self.interface = interface
             logging.debug("Node update %s === %s" % (repr(node), repr(interface)))
             if 'num' in node and 'user' in node:
                 if not node['num'] in self.nodes:
@@ -148,7 +153,7 @@ class MeshPWNstic(plugins.Plugin):
             elif p_from in self.channels:
                 logging.info("Channel not person: %s" % (repr(self.channels[p_from])))
                 sender = self.channels[p_from]
-                sname = sender['name']
+                sname = sender['name'] if 'name' in sender else repr(sender)
             else:
                 sender = p_from
                 sname = "[unk]"
@@ -160,7 +165,7 @@ class MeshPWNstic(plugins.Plugin):
                 rname = recip['longName'] if isinstance(recip, dict) and 'longName' in recip else recip
             elif p_to in self.channels:
                 recip = self.channels[p_to]
-                rname = recip['name']
+                rname = recip['name'] if 'name' in recip else repr(recip)
             else:
                 recip = p_to
                 rname = "[unk]"
@@ -192,16 +197,42 @@ class MeshPWNstic(plugins.Plugin):
                     logging.info("%s -> %s: %s" % (repr(sender), repr(recip), msg))
                     self.pwnyCommand(sender, recip, msg)
                 elif portnum == 'PAXCOUNTER_APP':
-                    print("  Paxcounter Information:")
                     message = paxcount_pb2.Paxcount()
                     payload_bytes = packet['decoded'].get('payload', b'')
                     message.ParseFromString(payload_bytes)
-                    print(f"    Wifi: {message.wifi}")
-                    print(f"    BLE: {message.ble}")
-                    print(f"    Uptime: {message.uptime}")
                     self.status = 'PAX %s wifi, %s ble, %s up' % (message.wifi, message.ble, message.uptime)
+                    logging.info(self.status)
                     self.addConsole(self.status)
-
+                elif portnum == 'NEIGHBORINFO_APP':
+                    try:
+                        message = mesh_pb2.NeighborInfo()
+                        payload_bytes = packet['decoded'].get('payload', b'')
+                        message.ParseFromString(payload_bytes)
+                        logging.debug("NeighborInfo: %s" % repr(message))
+                        msg = "Neighbor Info:"
+                        if message.node_id in self.nodes:
+                            msg += " from %s" % self.nodes[message.node_id]['longName']
+                        else:
+                            msg += "from #%s" % message.node_id
+                        msg += " %d nodes:" % len(message.neighbors)
+                        
+                        for n in message.neighbors:
+                            if n.node_id in self.nodes:
+                                msg += " %s (%sdb)" % (self.nodes[n.node_id]['longName'], n.snr)
+                            else:
+                                msg += " #%s (%sdb)" % (n.node_id, n.snr)
+                        logging.info(msg)
+                        self.addConsole(msg)
+                    except Exception as e:
+                        logging.exception("NeighborInfo: %s, %s" % (repr(p_data), repr(e)))
+                elif portnum == 'STORE_FORWARD_APP':
+                    try:
+                        message = storeforward_pb2.StoreAndForward()
+                        payload_bytes = packet['decoded'].get('payload', b'')
+                        message.ParseFromString(payload_bytes)
+                        logging.info("StoreForward: %s %s" % (sname, repr(message)))
+                    except Exception as e:
+                        logging.exception("StoreForward: %s, %s" % (repr(packet), repr(e)))
                 elif portnum == 'TELEMETRY_APP':
                     telemetry = p_data['telemetry']
                     delta = -1
@@ -440,6 +471,7 @@ class MeshPWNstic(plugins.Plugin):
                     status += ", %s(%s) APs" % (self.num_aps, self.num_aps_unfiltered)
                     status += ", %s/%s nodegps" % (len(self.positions), len(self.nodes))
                     logging.info("send back to %s: %s" % (sender['num'], status))
+                    time.sleep(1)
                     self.interface.sendText(status, destinationId=sender['num'])
                 except Exception as e:
                     logging(e)
@@ -487,14 +519,17 @@ class MeshPWNstic(plugins.Plugin):
 
             # remove UI elements
             i = 0
-            for n in self._ui_elements:
-                ui.remove_element(n)
-                logging.info("Removed %s" % repr(n))
-                i += 1
+            with ui._lock:
+                for n in self._ui_elements:
+                    ui.remove_element(n)
+                    logging.info("Removed %s" % repr(n))
+                    i += 1
             if i: logging.info("plugin unloaded %d elements" % i)
 
             if self.interface != None:
                 self.interface.close()
+                del self.interface
+                self.interface = None
                 logging.info("meshtastic closed")
 
             pub.unsubAll()
@@ -547,7 +582,7 @@ class MeshPWNstic(plugins.Plugin):
             self.status = ""
             
         if self.options['showLines'] > 0:
-            ui.set('meshpwnstic_console', "\n".join(self.console))
+            ui.set('meshpwnstic_console', "\n".join(self.console[:self.options['showLines']]))
     
     # called when the hardware display setup is done, display is an hardware specific object
     def on_display_setup(self, display):
@@ -585,7 +620,7 @@ class MeshPWNstic(plugins.Plugin):
                 self.interface = meshtastic.serial_interface.SerialInterface()
 
             logging.info("Connected to meshtastic: %s" % repr(self.interface))
-
+            time.sleep(3)
             self.myNode = self.interface.getMyNodeInfo()
             logging.info("My node: %s" % repr(self.myNode))
 
@@ -613,7 +648,6 @@ class MeshPWNstic(plugins.Plugin):
                             except Exception as e:
                                 logging.exception(e)
                             self.myLastPosition = self.myNode['position']
-                    self.interface.sendText("%s (%s) online: %s" % (user['longName'], mynum, myid))
                     logging.info("******** %s (%s) is ready ***********" % (user['longName'], mynum))
         except Exception as e:
             logging.exception(repr(e))
@@ -680,20 +714,25 @@ class MeshPWNstic(plugins.Plugin):
     # # called when an epoch is over (where an epoch is a single loop of the main algorithm)
     def on_epoch(self, agent, epoch, epoch_data):
         # if not connected, try reconnecting
-        if self.connected == False:
+        if self.connected == False and self.keepGoing == True:
             options = self.options
-        
-            if 'host' in options:
-                logging.info("Connecting to device on host %s" % (options['host']))
-                self.interface = meshtastic.tcp_interface.TCPInterface(options['host'])
-            elif 'serial' in options:
-                logging.info("Connecting to device at serial port %s" % (options['serial']))
-                self.interface = meshtastic.serial_interface.SerialInterface(options['serial'])
-            else:
-                logging.info("Finding Meshtastic device",2)
-                self.interface = meshtastic.serial_interface.SerialInterface()
 
-            logging.info("Connected to meshtastic: %s" % repr(self.interface))
+            try:
+                if self.interface:
+                    self.interface.connect()
+                elif 'host' in options:
+                    logging.info("Connecting to device on host %s" % (options['host']))
+                    self.interface = meshtastic.tcp_interface.TCPInterface(options['host'])
+                elif 'serial' in options:
+                    logging.info("Connecting to device at serial port %s" % (options['serial']))
+                    self.interface = meshtastic.serial_interface.SerialInterface(options['serial'])
+                else:
+                    logging.info("Finding Meshtastic device",2)
+                    self.interface = meshtastic.serial_interface.SerialInterface()
+
+                    logging.info("Connected to meshtastic: %s" % repr(self.interface))
+            except Exception as er:
+                logging.exception(er)
 
             self.myNode = self.interface.getMyNodeInfo()
 
