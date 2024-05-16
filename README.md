@@ -138,6 +138,10 @@ at the start of a long wait, while view and voice update many times during a lon
 plugin handlers again. So either voice.py or view.py needs to be modified anyway. The plugin will work without
 modified code, but the headline will get overwritten with a canned message after a few seconds.
 
+# speak_to_me.py
+Uses text to speech to announce pwning events.
+Requires espeak-ng for TTS ('sudo apt install espeak-ng').
+
 # tweak_view.py
   
 Edit the UI on the fly. It is a terrible user interface. You can break things. But move user interface elements
