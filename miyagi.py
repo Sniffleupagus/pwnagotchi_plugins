@@ -218,10 +218,11 @@ class Miyagi(plugins.Plugin):
             self._train_epoch = 0
 
             # save a backup of the brain before start training
-            self._nn_path = self.agent._config['ai']['path']
-            if os.path.isfile(self._nn_path):
-                back = "%s.bak" % self._nn_path
-                os.replace(self._nn_path, back)
+            # *** skipping backup because ai thread does it
+            #self._nn_path = self.agent._config['ai']['path']
+            #if os.path.isfile(self._nn_path):
+            #    back = "%s.bak" % self._nn_path
+            #    os.replace(self._nn_path, back)
                 self._view.set("mode", "STRT")
 
         
