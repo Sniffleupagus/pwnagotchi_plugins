@@ -223,7 +223,7 @@ class Miyagi(plugins.Plugin):
             #if os.path.isfile(self._nn_path):
             #    back = "%s.bak" % self._nn_path
             #    os.replace(self._nn_path, back)
-                self._view.set("mode", "STRT")
+            self._view.set("mode", "STRT")
 
         
         except Exception as e:
