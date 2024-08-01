@@ -236,12 +236,12 @@ class auto_tune(plugins.Plugin):
                 if "restrict_channels" in self.options:
                     logging.info("Repopulating from restricted list")
                     self._unscanned_channels = self.options["restrict_channels"].copy()
-                elif hasattr(self, "_allowed_channels"):
+                elif hasattr(agent, "_allowed_channels"):
                     logging.info("Repopulating from allowed list")
-                    self._unscanned_channels = self._allowed_channels.copy()
-                elif hasattr(self, "_supported_channels"):
+                    self._unscanned_channels = agent._allowed_channels.copy()
+                elif hasattr(agent, "_supported_channels"):
                     logging.info("Repopulating from supported list")
-                    self._unscanned_channels = self._supported_channels.copy()
+                    self._unscanned_channels = agent._supported_channels.copy()
                 else:
                     logging.info("Repopulating unscanned list")
                     self._unscanned_channels = pwnagotchi.utils.iface_channels(agent._config['main']['iface'])
