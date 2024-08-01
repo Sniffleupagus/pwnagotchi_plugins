@@ -7,6 +7,7 @@ from pwnagotchi.ui.components import LabeledValue
 from pwnagotchi.ui.view import BLACK
 import pwnagotchi.ui.fonts as fonts
 import pwnagotchi.utils
+from pwnagotchi.utils import save_config, merge_config
 
 from flask import abort
 from flask import render_template_string
@@ -125,6 +126,7 @@ class auto_tune(plugins.Plugin):
                     ret = '<html><head><title>AUTO Tune Update!</title><meta name="csrf_token" content="{{ csrf_token() }}"></head>'
                     ret += "<body><h1>AUTO Tune Update</h1>"
                     ret += "<h2>Request</h2><code>"
+                    changed = False
                     for (key, val) in request.values.items():
                         if key != "":
                             #ret += "%s -> %s<br>\n" % (key,val)
@@ -137,15 +139,19 @@ class auto_tune(plugins.Plugin):
                                         elif vtype == "int":
                                             self._agent._config['personality'][parameter] = int(val)
                                             ret += "Updated int %s: %s -> %s<br>\n" % (parameter, value, val)
+                                            changed = True
                                         elif vtype == "float":
                                             self._agent._config['personality'][parameter] = float(val)
                                             ret += "Updated float %s: %s -> %s<br>\n" % (parameter, value, val)
+                                            changed = True
                                         elif vtype == "bool":
                                             self._agent._config['personality'][parameter] = bool(val == "True")
                                             ret += "Updated boolean %s: %s -> %s<br>\n" % (parameter, value, val)
+                                            changed = True
                                         elif vtype == "str":
                                             self._agent._config['personality'][parameter] = val
                                             ret += "Updated string %s: %s -> %s<br>\n" % (parameter, value, val)
+                                            changed = True
                                         else:
                                             ret += "No update %s (%s): %s -> %s<br>\n" % (parameter, type, value, val)
                                     else:
@@ -156,9 +162,10 @@ class auto_tune(plugins.Plugin):
                                 ret += "</code><h2>Error</h2><pre>%s</pre><p><code>" % repr(e)
                                 logging.exception(e)
                     ret += "</code>"
+                    if changed:
+                        save_config(self._agent._config, "/etc/pwnagotchi/config.toml")
                     ret += self.showEditForm(request)
                     ret += self.showHistogram()
-
                     ret += "</body></html>"
                 else:
                     ret += "<body><h1>Unknown request</h1>"
@@ -226,7 +233,18 @@ class auto_tune(plugins.Plugin):
             next_channels = self._active_channels.copy()
             n = 3 if "extra_channels" not in self.options else self.options["extra_channels"]
             if len(self._unscanned_channels) == 0:
-                self._unscanned_channels = pwnagotchi.utils.iface_channels(agent._config['main']['iface'])
+                if "restrict_channels" in self.options:
+                    logging.info("Repopulating from restricted list")
+                    self._unscanned_channels = self.options["restrict_channels"].copy()
+                elif hasattr(self, "_allowed_channels"):
+                    logging.info("Repopulating from allowed list")
+                    self._unscanned_channels = self._allowed_channels.copy()
+                elif hasattr(self, "_supported_channels"):
+                    logging.info("Repopulating from supported list")
+                    self._unscanned_channels = self._supported_channels.copy()
+                else:
+                    logging.info("Repopulating unscanned list")
+                    self._unscanned_channels = pwnagotchi.utils.iface_channels(agent._config['main']['iface'])
 
             for i in range(n):
                 if len(self._unscanned_channels):
