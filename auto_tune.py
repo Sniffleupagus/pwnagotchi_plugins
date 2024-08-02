@@ -46,7 +46,8 @@ class auto_tune(plugins.Plugin):
         ret = '<form method=post action="%s">' % path
         ret += '<input id="csrf_token" name="csrf_token" type="hidden" value="{{ csrf_token() }}">'
 
-        for secname, sec in [["Personality", self._agent._config['personality']]]:
+        for secname, sec in [["Personality", self._agent._config['personality']],
+                             ["AUTO Tune", self._agent._config['main']['plugins']['auto_tune']]]:
             ret += '<h2>%s Variables</h2>' % secname
             ret += '<table>\n'
             ret += '<tr align=left><th>Parameter</th><th>Value</th><th>Description</th></tr>\n'
@@ -75,28 +76,60 @@ class auto_tune(plugins.Plugin):
 
     def showHistogram(self):
         ret = ""
-        nloops = int(self._histogram["loops"])
+        histo = self._histogram
+        nloops = int(histo["loops"])
         if nloops > 0:
             ret += "<h2>APs per Channel over %s epochs</h2>" % (nloops)
-            ret += "<table>"
-            chans = "<tr>"
-            vals = "<tr>"
-            for (ch, count) in sorted(self._histogram.items(), key=lambda x:x[1], reverse = True):
+            ret += "<table border=1 spacing=4 cellspacing=1>"
+            chans = "<tr><th>Channel</th>"
+            totals = "<tr><th>APs seen</th>"
+            vals = "<tr><th>Avg APs/epoch</th>"
+
+            for (ch, count) in sorted(histo.items(), key=lambda x:x[1], reverse = True):
                 if ch == "loops":
                     pass
                 else:
-                    count = float(count)/nloops
+                    weight = float(count)/nloops
                     #ret +="<tr><th>%d</th><td>%0.2f</td>" % (ch, count)
                     chans += "<th>%s</th>" % ch
-                    vals += "<td>%0.2f</td>" % count
+                    totals += "<td align=right>%d</td>" % count
+                    vals += "<td align=right>%0.1f</td>" % weight
             chans += "</tr>"
+            totals += "</tr>"
             vals += "</tr>"
-            ret += chans + vals
+            ret += chans + totals + vals
             ret += "</table>"
         else:
             ret += "<h2>No channel data collected yet</h2>"
 
         return ret
+
+    def update_parameter(self, cfg, parameter, vtype, val, ret):
+        changed = False
+        if parameter in cfg:
+            old_val = cfg[parameter]
+
+            if val == old_val:
+                pass
+            elif vtype == "int":
+                cfg[parameter] = int(val)
+                changed = True
+            elif vtype == "float":
+                cfg[parameter] = float(val)
+                ret += "Updated float %s: %s -> %s<br>\n" % (parameter, old_val, val)
+                changed = True
+            elif vtype == "bool":
+                cfg[parameter] = bool(val == "True")
+                ret += "Updated boolean %s: %s -> %s<br>\n" % (parameter, old_val, val)
+                changed = True
+            elif vtype == "str":
+                cfg[parameter] = val
+                ret += "Updated string %s: %s -> %s<br>\n" % (parameter, old_val, val)
+                changed = True
+            else:
+                ret += "No update %s (%s): %s -> %s<br>\n" % (parameter, type, old_val, val)
+
+        return changed
 
     # called when http://<host>:<port>/plugins/<plugin>/ is called
     # must return a html page
@@ -125,7 +158,7 @@ class auto_tune(plugins.Plugin):
                 if path == "update": # update settings that changed, save to json file
                     ret = '<html><head><title>AUTO Tune Update!</title><meta name="csrf_token" content="{{ csrf_token() }}"></head>'
                     ret += "<body><h1>AUTO Tune Update</h1>"
-                    ret += "<h2>Request</h2><code>"
+                    ret += "<h2>Processing changes</h2><ul>"
                     changed = False
                     for (key, val) in request.values.items():
                         if key != "":
@@ -133,35 +166,27 @@ class auto_tune(plugins.Plugin):
                             try:
                                 if key.startswith('newval,'):
                                     (tag, value, parameter, vtype) = key.split(",", 4)
+                                    if value == val:
+                                        logging.debug("Skip unchanged value")
+                                        continue
+
                                     if parameter in self._agent._config['personality']:
-                                        if val == value:
-                                            pass # ret += "<i>Unchanged %s</i> -> %s<br>" % (key,val)
-                                        elif vtype == "int":
-                                            self._agent._config['personality'][parameter] = int(val)
-                                            ret += "Updated int %s: %s -> %s<br>\n" % (parameter, value, val)
-                                            changed = True
-                                        elif vtype == "float":
-                                            self._agent._config['personality'][parameter] = float(val)
-                                            ret += "Updated float %s: %s -> %s<br>\n" % (parameter, value, val)
-                                            changed = True
-                                        elif vtype == "bool":
-                                            self._agent._config['personality'][parameter] = bool(val == "True")
-                                            ret += "Updated boolean %s: %s -> %s<br>\n" % (parameter, value, val)
-                                            changed = True
-                                        elif vtype == "str":
-                                            self._agent._config['personality'][parameter] = val
-                                            ret += "Updated string %s: %s -> %s<br>\n" % (parameter, value, val)
-                                            changed = True
-                                        else:
-                                            ret += "No update %s (%s): %s -> %s<br>\n" % (parameter, type, value, val)
+                                        logging.debug("Personality update")
+                                        chg = self.update_parameter(self._agent._config['personality'], parameter, vtype, val, ret)
+                                    elif parameter in self.options:
+                                        logging.debug("plugin settings update")
+                                        chg = self.update_parameter(self.options, parameter, vtype, val, ret)
                                     else:
-                                        ret += "<b>Skipping unknown %s</b> -> %s<br>" % (key,val)
+                                        ret += "<li><b>Skipping unknown %s</b> -> %s\n" % (key,val)
+                                    if chg:
+                                        ret += "<li>%s: %s -> %s\n" % (parameter, value, val)
+                                    changed = changed or chg
                                 else:
                                     pass # ret += "No update %s -> %s<br>\n" % (key, val)
                             except Exception as e:
                                 ret += "</code><h2>Error</h2><pre>%s</pre><p><code>" % repr(e)
                                 logging.exception(e)
-                    ret += "</code>"
+                    ret += "</ul>"
                     if changed:
                         save_config(self._agent._config, "/etc/pwnagotchi/config.toml")
                     ret += self.showEditForm(request)
@@ -186,6 +211,7 @@ class auto_tune(plugins.Plugin):
 
     def on_ready(self, agent):
         self._agent = agent
+
         if agent._config['ai']['enabled']:
             logging.info("Auto_Tune is inactive when AI is enabled.")
         else:
@@ -237,7 +263,7 @@ class auto_tune(plugins.Plugin):
                     logging.info("Repopulating from restricted list")
                     self._unscanned_channels = self.options["restrict_channels"].copy()
                 elif hasattr(agent, "_allowed_channels"):
-                    logging.info("Repopulating from allowed list")
+                    logging.info("Repopulating from allowed list: %s" % agent._allowed_channels)
                     self._unscanned_channels = agent._allowed_channels.copy()
                 elif hasattr(agent, "_supported_channels"):
                     logging.info("Repopulating from supported list")
