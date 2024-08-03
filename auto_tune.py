@@ -204,7 +204,7 @@ class auto_tune(plugins.Plugin):
         if self._agent:
             ret += "<h2>Interactions per endpoint</h2>"
             ret += "<table border=1 spacing=4 cellspacing=4 cellpadding=4>"
-            ret += "<tr><th>Hostname</th><th>MAC</th><th>Encounters</th><th>Associates></th><th>Deauths</th><th>Handshakes</th><th>Interactions</th></tr>"
+            ret += "<tr><th>Hostname</th><th>MAC</th><th>Encounters</th><th>Associates</th><th>Deauths</th><th>Handshakes</th><th>Interactions</th></tr>"
             for (id, ap) in sorted(self._known_aps.items(), key=lambda x:x[1]['AT_seen'], reverse=True):
                 lmac = ap['mac'].lower()
                 ret += "<tr><td>%s</td><td>%s</td><td>%s</td>" % (ap['hostname'], ap['mac'], ap['AT_seen'])
