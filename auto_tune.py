@@ -50,13 +50,13 @@ class auto_tune(plugins.Plugin):
         ret = ""
         if not stats:
             stats = self._chistos.keys()
-            logging.info("Using: %s" % repr(stats))
+            logging.debug("Using keys: %s" % repr(stats))
         try:
             if sort_key in self._chistos:
                 channel_order = sorted(self._chistos[sort_key].items(), key=lambda x:x[1], reverse = True)
             else:
                 channel_order = self._agent._supported_channels
-            logging.info("Channel Order: %s" % repr(channel_order))
+            logging.debug("Channel Order: %s" % repr(channel_order))
 
             ret += "<h2>Channel Statistics</h2>\n"
             ret += "<table border=1 cellspacing=4 cellpadding=4>\n"
@@ -100,6 +100,10 @@ class auto_tune(plugins.Plugin):
         """
         Only allow alpha/nums
         """
+        if not name or name == '':
+            return 'EMPTY'
+        if name == '<hidden>':
+            return 'HIDDEN'
         return str.lower(''.join(c for c in name if c.isalnum()))
 
     def __init__(self):
@@ -201,14 +205,35 @@ class auto_tune(plugins.Plugin):
 
     def showInteractions(self):
         ret = ""
+        numHidden = 0
+        numVisible = 0
         if self._agent:
+            now = time.time()
             ret += "<h2>Interactions per endpoint</h2>"
+            ret += "<p><b>Encounters</b> is how many different times this AP has been seen, then not seen, then seen again. Interactions should be the sum of assoc and deauth attacks. All are per session stats. <b>Age</b> is seconds since AP was last seen by the plugin.</p>"
             ret += "<table border=1 spacing=4 cellspacing=4 cellpadding=4>"
-            ret += "<tr><th>Hostname</th><th>MAC</th><th>Encounters</th><th>Associates</th><th>Deauths</th><th>Handshakes</th><th>Interactions</th></tr>"
-            for (id, ap) in sorted(self._known_aps.items(), key=lambda x:x[1]['AT_seen'], reverse=True):
+            ret += "<tr><th>Hostname</th><th>MAC</th><th>Channel</th><th>Age</th><th>RSSI</th><th>Encounters</th><th>Associates</th><th>Deauths</th><th>Handshakes</th><th>Interactions</th></tr>"
+            for (id, ap) in sorted(self._known_aps.items(), key=lambda x:x[1]['AT_lastseen'], reverse=True):
                 lmac = ap['mac'].lower()
-                ret += "<tr><td>%s</td><td>%s</td><td>%s</td>" % (ap['hostname'], ap['mac'], ap['AT_seen'])
-                for t in ['assoc', 'deauth', 'handshake']:
+                if ap['hostname'] == "<hidden>" and not self.options['show_hidden']:
+                    logging.debug("Skipping %s '%s'" % (ap['hostname'], lmac))
+                    numHidden += 1
+                    continue # skip hidden APs
+                elif ap['hostname'] == '' and not self.options['show_hidden']:
+                    logging.debug("Skipping no-name %s '%s'" % (ap['hostname'], lmac))
+                    numHidden += 1
+                    continue # skip hidden APs
+                elif ap['hostname'] == None and not self.options['show_hidden']:
+                    logging.debug("Skipping None %s '%s'" % (ap['hostname'], lmac))
+                    numHidden += 1
+                    continue # skip hidden APs
+                else:
+                    numVisible += 1
+                    logging.debug("Not skipping '%s'" % ap['hostname'])
+                ret += "<tr><td>%s</td><td>%s</td><td>%s</td>" % (html.escape(ap['hostname']), ap['mac'], ap['channel'])
+                ret += "<td>%d</td>" % int(now - ap['AT_lastseen'])
+                ret += "<td>%s</td>" % ap['rssi']
+                for t in ['seen', 'assoc', 'deauth', 'handshake']:
                     tag = 'AT_' + t
                     if tag in ap:
                         ret += "<td>%s</td>" % ap[tag]
@@ -222,6 +247,8 @@ class auto_tune(plugins.Plugin):
 #            for (mac, count) in sorted(self._agent._history.items(), key=lambda x:x[1], reverse = True):
 #                ret += "<tr><td>%s</td><td>%s</td><td></td><td>%s</td></tr>" % (mac, mac, count)
             ret += "</table>\n"
+            if numHidden:
+                ret += "%s visible, %s hidden networks<p>" % (numVisible, numHidden)
 
         return ret
 
@@ -332,11 +359,24 @@ class auto_tune(plugins.Plugin):
 
     # called when the plugin is loaded
     def on_loaded(self):
-        pass
+        try:
+            defaults = { 'show_hidden': False,
+                         'reset_history': True,
+                         'extra_channels': 3,
+                        }
+
+            for d in defaults:
+                if d not in self.options:
+                    self.options[d] = defaults[d]
+        except Exception as e:
+            logging.exception(e)
 
     def on_ready(self, agent):
         self._agent = agent
-        self._agent.run("wifi.recon clear")
+        if self.options['reset_history']:
+            self._agent._history = {}  # clear "max_interactions" data
+            self._agent.run("wifi.recon clear")
+            self._agent.run("wifi.clear")
         if agent._config['ai']['enabled']:
             logging.info("Auto_Tune is inactive when AI is enabled.")
         else:
@@ -415,7 +455,7 @@ class auto_tune(plugins.Plugin):
             apID = apname + '-' + apmac
             channel = access_point['channel']
 
-            contextlabel = "on "+context if context else ""
+            contextlabel = " on "+context if context else ""
             tag = 'AT_' + context if context else 'AT_seen'
             
             if apID not in self._known_aps:
@@ -437,6 +477,7 @@ class auto_tune(plugins.Plugin):
                 # if wasn't visible, increment current count
                 if self._known_aps[apID]['AT_visible'] == False:
                     self._known_aps[apID]['AT_visible'] = True
+                    self._known_aps[apID]['AT_seen'] += 1
                     self.incrementChisto('Current APs', channel)
 
                 # increment context count in the AP data
@@ -444,6 +485,7 @@ class auto_tune(plugins.Plugin):
                 if not context:
                     logging.info("Returning AP: %s" % (apID))
 
+            self._known_aps[apID]['AT_lastseen'] = time.time()
             return True
         except Exception as e:
             logging.exception(e)
