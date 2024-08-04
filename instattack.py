@@ -69,7 +69,7 @@ class instattack(plugins.Plugin):
         try:
             ap = event['data']
             if agent._config['personality']['associate'] and self.ok_to_attack(ap):
-                logging.info("insta-associate: %s (%s)" % (ap['hostname'], ap['mac']))
+                logging.debug("insta-associate: %s (%s)" % (ap['hostname'], ap['mac']))
                 agent.associate(ap, 0.3)
         except Exception as e:
             logging.error(repr(e))
@@ -79,7 +79,7 @@ class instattack(plugins.Plugin):
             ap = event['data']['AP']
             cl = event['data']['Client']
             if agent._config['personality']['deauth'] and self.ok_to_attack(ap) and self.ok_to_attack(cl):
-                logging.info("insta-deauth: %s (%s)->'%s'(%s)(%s)" % (ap['hostname'], ap['mac'],
+                logging.debug("insta-deauth: %s (%s)->'%s'(%s)(%s)" % (ap['hostname'], ap['mac'],
                                                                       cl['hostname'], cl['mac'], cl['vendor']))
                 agent.deauth(ap, cl, 0.75)
         except Exception as e:
