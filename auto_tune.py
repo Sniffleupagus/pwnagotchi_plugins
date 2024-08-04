@@ -230,8 +230,12 @@ class auto_tune(plugins.Plugin):
                 else:
                     numVisible += 1
                     logging.debug("Not skipping '%s'" % ap['hostname'])
-                ret += "<tr><td>%s</td><td>%s</td><td>%s</td>" % (html.escape(ap['hostname']), ap['mac'], ap['channel'])
-                ret += "<td>%d</td>" % int(now - ap['AT_lastseen'])
+                if ap['AT_visible']:
+                    ret += "<tr><td>%s</td>" % html.escape(ap['hostname'])
+                else:
+                    ret += "<tr><td><i>%s</i></td>" % html.escape(ap['hostname'])   # italicise hosts not currently visible
+                ret += "<td>%s</td><td>%s</td>" % (ap['mac'], ap['channel'])
+                ret += "<td>%d</td>" % int(now - ap['AT_lastseen'])                 # time since last interaction
                 ret += "<td>%s</td>" % ap['rssi']
                 for t in ['seen', 'assoc', 'deauth', 'handshake']:
                     tag = 'AT_' + t
@@ -383,8 +387,16 @@ class auto_tune(plugins.Plugin):
             logging.info("Auto_Tune is active! options = %s" % repr(self.options))
 
     # called before the plugin is unloaded
-    #def on_unload(self, ui):
-    #    pass
+    def on_unload(self, ui):
+        ui.set('mode', 'AUTO')
+
+    def on_ui_update(self, ui):
+        try:
+            stats = self._chistos
+            mode = 'SEE(%d/%d)' % (stats.get('Current APs',{}).get(-1,0), stats.get('Unique APs',{}).get(-1,0))
+            ui.set('mode', mode)
+        except Exception as e:
+            logging.exception(e)
 
     # called when the agent refreshed its access points list
     def on_wifi_update(self, agent, access_points):
@@ -396,6 +408,7 @@ class auto_tune(plugins.Plugin):
             active_channels = []
             self._histogram["loops"] = self._histogram["loops"] + 1
             for ap in access_points:
+                self.markAPSeen(ap, 'wifi_update')
                 ch = ap['channel']
                 logging.debug("%s %d" % (ap['hostname'], ch))
                 if ch not in active_channels:
