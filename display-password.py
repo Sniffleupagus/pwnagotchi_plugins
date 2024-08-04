@@ -89,7 +89,7 @@ class DisplayPassword(plugins.Plugin):
 
     # update from list of visible APs, and pick from the file one that matchs
 
-    def on_unfiltered_ap_list(self, agent, access_points):
+    def on_wifi_update(self, agent, access_points):
         self.readPotfile()
         self.found = {}
         
@@ -97,19 +97,19 @@ class DisplayPassword(plugins.Plugin):
             mac = ap['mac'].replace(":", "").lower()
             ssid = ap['hostname'].strip().lower()
             if mac in self.cracked:                
-                logging.info("APmac: %s, %s" % (self.cracked[mac].strip(), repr(ap)))
+                logging.debug("APmac: %s, %s" % (self.cracked[mac].strip(), repr(ap)))
                 (amac, smac, assid, apass) = self.cracked[mac].strip().split(':', 3)
                 if ssid == assid.lower():
                     logging.debug("Found: %s %s ? %s" % (mac, ssid, self.cracked[mac]))
                     self.found[mac] = assid + ":" + apass                
             elif ssid in self.cracked:                
-                logging.info("APssid: %s, %s" % (self.cracked[ssid].strip(), repr(ap)))
+                logging.debug("APssid: %s, %s" % (self.cracked[ssid].strip(), repr(ap)))
                 (amac, smac, assid, apass) = self.cracked[ssid].strip().split(':', 3)
                 if ssid == assid.lower():
                     logging.debug("Found: %s %s ? %s" % (mac, ssid, self.cracked[ssid]))
                     self.found[mac] = assid + "-" + apass
             else:
-                logging.info("AP: %s, %s not found" % (mac, ssid))
+                logging.debug("AP: %s, %s not found" % (mac, ssid))
     
     def on_ui_update(self, ui):
         if len(self.found):
