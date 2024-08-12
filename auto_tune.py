@@ -393,7 +393,7 @@ class auto_tune(plugins.Plugin):
     def on_ui_update(self, ui):
         try:
             stats = self._chistos
-            mode = 'SEE(%d/%d)' % (stats.get('Current APs',{}).get(-1,0), stats.get('Unique APs',{}).get(-1,0))
+            mode = 'AT(%d/%d)' % (stats.get('Current APs',{}).get(-1,0), stats.get('Unique APs',{}).get(-1,0))
             ui.set('mode', mode)
         except Exception as e:
             logging.exception(e)
