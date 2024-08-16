@@ -14,7 +14,7 @@ except Exception as e:
 
 class enable_assoc(plugins.Plugin):
     __author__ = 'evilsocket@gmail.com'
-    __version__ = '1.0.0'
+    __version__ = '1.0.1'
     __license__ = 'GPL3'
     __description__ = 'Enable and disable ASSOC  on the fly. Enabled when plugin loads, disabled when plugin unloads.'
 
@@ -23,12 +23,6 @@ class enable_assoc(plugins.Plugin):
         self._count = 0
         self.hasTouch = False
         self._touchscreen = None
-
-    # called when http://<host>:<port>/plugins/<plugin>/ is called
-    # must return a html page
-    # IMPORTANT: If you use "POST"s, add a csrf-token (via csrf_token() and render_template_string)
-    def on_webhook(self, path, request):
-        pass
 
     # called when the plugin is loaded
     def on_loaded(self):
