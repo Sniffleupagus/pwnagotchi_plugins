@@ -16,7 +16,7 @@ class enable_assoc(plugins.Plugin):
     __author__ = 'evilsocket@gmail.com'
     __version__ = '1.0.0'
     __license__ = 'GPL3'
-    __description__ = 'Enable and disable ASSOC  on the fly. Enabled when plugin loads, disabled when plugin unloads.'
+    __description__ = 'Enable and disable ASSOC on the fly. Enabled when plugin loads, disabled when plugin unloads.'
 
     def __init__(self):
         self._agent = None
