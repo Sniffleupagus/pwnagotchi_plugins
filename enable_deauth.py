@@ -84,7 +84,7 @@ class enable_deauth(plugins.Plugin):
                 pos = self.options['position'].split(',')
                 pos = [int(x.strip()) for x in pos]
             else:
-                pos = (215, 111, 30, 59)
+                pos = (0,36,30,59)
 
             try:
                 ui.add_element('deauth_count', Touch_Button(position=pos,
