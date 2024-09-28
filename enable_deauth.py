@@ -98,16 +98,15 @@ class enable_deauth(plugins.Plugin):
                                                             )
                                )
             except Exception:
-                ui.add_element('deauth_count', LabeledValue(color=BLACK, label='A', value='0', position=pos,
+                ui.add_element('deauth_count', LabeledValue(color=BLACK, label='D', value='', position=pos,
                                                            label_font=fonts.BoldSmall, text_font=fonts.Small))
         except Exception as err:
             logging.info("enable deauth ui error: %s" % repr(err))
 
-        # called when the ui is updated
-
+    # called when the ui is updated
     def on_ui_update(self, ui):
         # update those elements
         try:
-            ui.set('deauth_count', "%d" % (self._count))
+            ui.set('deauth_count', str(self._count))  # Update with current deauth count
         except Exception as err:
             logging.info("enable deauth ui error: %s" % repr(err))
