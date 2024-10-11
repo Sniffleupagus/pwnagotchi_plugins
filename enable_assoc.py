@@ -28,7 +28,7 @@ class enable_assoc(plugins.Plugin):
     # must return a html page
     # IMPORTANT: If you use "POST"s, add a csrf-token (via csrf_token() and render_template_string)
     def on_webhook(self, path, request):
-        pass
+        return "<html><head><title>Nothing happened</title></head><body><h1>Nothing happened.</h1></body></html>"
 
     # called when the plugin is loaded
     def on_loaded(self):
