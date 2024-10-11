@@ -58,6 +58,7 @@ class Command_Server(plugins.Plugin):
                     if s is server_socket:
                         client_socket, address = server_socket.accept()
                         read_list.append(client_socket)
+                        client_socket.send(b'> ')
                     else:
                         data = s.recv(1024)
                         data = data.decode('utf-8').strip()
@@ -128,6 +129,8 @@ class Command_Server(plugins.Plugin):
                             else:
                                 logging.warning("Unknown command: %s, %s" % (cmd, args))
                                 s.send(('Unknown command: %s\n\r' % cmd).encode())
+                            client_socket.send(b'> ')
+
                         else:
                             # no data received from this client, so close connection
                             logging.info("Closing %s" % repr(s))
