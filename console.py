@@ -18,6 +18,7 @@ class Console(plugins.Plugin):
     def __init__(self):
         self._console = [ "%s - Pwnagotchi Console %s" % (datetime.now().strftime('%c'), self.__version__) ]
         self._ui_elements = []       # keep track of UI elements created in on_ui_setup for easy removal in on_unload
+        self._last_status = None
 
     # called when http://<host>:<port>/plugins/<plugin>/ is called
     # must return a html page
@@ -71,7 +72,7 @@ class Console(plugins.Plugin):
         # add custom UI elements
         pos = self.options.get('position', (0,100))
         color = self.options.get('color', 'Blue')
-        font_height = self.options.get('font_size', int(ui._height/40))
+        font_height = self.options.get('font_size', int(ui._height/60))
         
         confont = ImageFont.truetype(fonts.FONT_NAME, size=font_height)
         ui.add_element('pwn-console', Text(color=color, value='--', position=pos, font=fonts.Medium))
@@ -80,6 +81,11 @@ class Console(plugins.Plugin):
     # called when the ui is updated
     def on_ui_update(self, ui):
         # update those elements
+        st = ui.get('status')
+        if st != "" and st != '...' and st != self._last_status:
+            self._last_status = st
+            self.addConsole(st)
+
         ui.set('pwn-console', '\n'.join(self._console[:self.options['showLines']]))
 
     # called when the hardware display setup is done, display is an hardware specific object
@@ -93,7 +99,8 @@ class Console(plugins.Plugin):
 
     # called when the AI finished loading
     def on_ai_ready(self, agent):
-        self.addConsole("Neural net ready.")
+        #self.addConsole("Neural net ready.")
+        pass
 
     # called when the AI finds a new set of parameters
     def on_ai_policy(self, agent, policy):
@@ -165,11 +172,13 @@ class Console(plugins.Plugin):
 
     # called when the agent is sending an association frame
     def on_association(self, agent, access_point):
-        self.addConsole("A->%s" % (access_point['hostname']))
+        #self.addConsole("A->%s" % (access_point['hostname']))
+        pass
 
     # called when the agent is deauthenticating a client station from an AP
     def on_deauthentication(self, agent, access_point, client_station):
-        self.addConsole("D->%s %s" % (access_point['hostname'], client_station['hostname']))
+        #self.addConsole("D->%s %s" % (access_point['hostname'], client_station['hostname']))
+        pass
 
     # callend when the agent is tuning on a specific channel
     def on_channel_hop(self, agent, channel):
