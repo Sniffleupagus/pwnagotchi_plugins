@@ -145,7 +145,7 @@ class enable_deauth(plugins.Plugin):
             agent._config['personality']['deauth'] = self._deauth_enable
             if self._ui:
                 d_label = self._ui._state._state['deauth_count']
-                d_label.label = sdlabel.label.capitalize()
+                d_label.label = d_label.label.capitalize()
 
 
     # Switch off deauths as soon as a home network shows up
