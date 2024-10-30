@@ -187,7 +187,7 @@ class Console(plugins.Plugin):
     # called when a new handshake is captured, access_point and client_station are json objects
     # if the agent could match the BSSIDs to the current list, otherwise they are just the strings of the BSSIDs
     def on_handshake(self, agent, filename, access_point, client_station):
-        self.addConsole("H->%s %s" % (access_point['hostname'], client_station['hostname']))
+        self.addConsole("H->%s" % (access_point.get('hostname', "???")))
 
 
     # called when an epoch is over (where an epoch is a single loop of the main algorithm)
