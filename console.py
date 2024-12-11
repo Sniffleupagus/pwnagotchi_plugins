@@ -70,12 +70,13 @@ class Console(plugins.Plugin):
     # called to setup the ui elements
     def on_ui_setup(self, ui):
         # add custom UI elements
-        pos = self.options.get('position', (0,100))
+        pos = self.options.get('position', (20,100))
+        self.options['position'] = pos
         color = self.options.get('color', 'Blue')
         font_height = self.options.get('font_size', int(ui._height/60))
         
         confont = ImageFont.truetype(fonts.FONT_NAME, size=font_height)
-        ui.add_element('pwn-console', Text(color=color, value='--', position=pos, font=fonts.Medium))
+        ui.add_element('pwn-console', Text(color=color, value='--', position=(pos[0],pos[1]), font=fonts.Medium))
         self._ui_elements.append('pwn-console')
 
     # called when the ui is updated
