@@ -399,7 +399,7 @@ class Tweak_View(plugins.Plugin):
                    "Huge": fonts.Huge
         }
         # include lots more sizes
-        just_once = true
+        just_once = True
         for p in [6, 7, 8, 9, 10, 11, 12, 14, 16, 18, 20, 24, 25, 28, 30, 35, 42, 48, 52, 54, 60, 69, 72, 80, 90, 100, 120]:
             try:
                 self.myFonts["Deja %s" % p] = ImageFont.truetype('DejaVuSansMono', p)
@@ -408,7 +408,7 @@ class Tweak_View(plugins.Plugin):
             except Exception as e:
                 if just_once:
                     logging.warn("Missing some fonts: %s" % repr(e))
-                    just_once = false
+                    just_once = False
 
         # load a config file... /etc/pwnagotchi/tweak_view.json for default
         self._conf_file = self.options["filename"] if "filename" in self.options else "/etc/pwnagotchi/tweak_view.json"
