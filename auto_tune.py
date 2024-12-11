@@ -118,6 +118,8 @@ class auto_tune(plugins.Plugin):
         self._known_clients = {}      # dict of all clients by normalized APmac+STAmac (many clients to not have names)
         self._agent = None            # local copy of the pwnagotchi agent, available after on_ready
 
+        self._orig_mode = 'AUTO'
+
         self.descriptions = {         # descriptions of personality variables displayed in webui
             "advertise": "enable/disable advertising to mesh peers",
             "deauth" : "enable/disable deauthentication attacks",
@@ -388,13 +390,21 @@ class auto_tune(plugins.Plugin):
 
     # called before the plugin is unloaded
     def on_unload(self, ui):
-        ui.set('mode', 'AUTO')
+        ui.set('mode', self._orig_mode)
+
+    def on_ui_setup(self, ui):
+        self._ui = ui
+        self._orig_mode = ui.get('mode')
+
+        if self._orig_mode != 'MANU':
+            ui.set('mode', 'AT')
 
     def on_ui_update(self, ui):
         try:
-            stats = self._chistos
-            mode = 'AT(%d/%d)' % (stats.get('Current APs',{}).get(-1,0), stats.get('Unique APs',{}).get(-1,0))
-            ui.set('mode', mode)
+            if self._orig_mode != 'MANU':
+                stats = self._chistos
+                mode = 'AT(%d/%d)' % (stats.get('Current APs',{}).get(-1,0), stats.get('Unique APs',{}).get(-1,0))
+                ui.set('mode', mode)
         except Exception as e:
             logging.exception(e)
 
