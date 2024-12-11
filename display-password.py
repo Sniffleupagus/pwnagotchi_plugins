@@ -10,7 +10,7 @@
 # Modified by Sniffleupagus
 #
 ###############################################################
-from pwnagotchi.ui.components import LabeledValue
+from pwnagotchi.ui.components import Text
 from pwnagotchi.ui.view import BLACK
 import pwnagotchi.ui.fonts as fonts
 import pwnagotchi.plugins as plugins
@@ -88,14 +88,14 @@ class DisplayPassword(plugins.Plugin):
             v_pos = (180, 61)
 
         if 'orientation' in self.options and self.options['orientation'] == "vertical":
-            ui.add_element('display-password', LabeledValue(color=BLACK, label='', value='',
-                                                   position=v_pos,
-                                                   label_font=fonts.Bold, text_font=fonts.Small))
+            ui.add_element('display-password', Text(color=BLACK, value='',
+                                                    position=v_pos,
+                                                    font=fonts.Small))
         else:
             # default to horizontal
-            ui.add_element('display-password', LabeledValue(color=BLACK, label='', value='',
-                                                   position=h_pos,
-                                                   label_font=fonts.Bold, text_font=fonts.Small))
+            ui.add_element('display-password', Text(color=BLACK, value='',
+                                                    position=h_pos,
+                                                    font=fonts.Small))
 
     def on_unload(self, ui):
         try:
@@ -105,7 +105,15 @@ class DisplayPassword(plugins.Plugin):
             logging.info(e)
 
     # update from list of visible APs, and pick from the file one that matchs
+    def on_unfiltered_ap_list(self, agent, access_points):
+        if self.options.get("show_whitelist", False):
+            self.check_aps(access_points)
+
     def on_wifi_update(self, agent, access_points):
+        if not self.options.get("show_whitelist", False):
+            self.check_aps(access_points)
+
+    def check_aps(self, access_points):
       try:
         self.readPotfile()
         self.found = {}
