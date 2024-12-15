@@ -68,34 +68,20 @@ class DisplayPassword(plugins.Plugin):
 
     def on_ui_setup(self, ui):
         self._ui = ui
-        if ui.is_waveshare_v2():
-            h_pos = (0, 95)
-            v_pos = (180, 61)
-        elif ui.is_waveshare_v1():
-            h_pos = (0, 95)
-            v_pos = (170, 61)
-        elif ui.is_waveshare144lcd():
-            h_pos = (0, 92)
-            v_pos = (78, 67)
-        elif ui.is_inky():
-            h_pos = (0, 83)
-            v_pos = (165, 54)
-        elif ui.is_waveshare27inch():
-            h_pos = (0, 153)
-            v_pos = (216, 122)
-        else:
-            h_pos = (0, 91)
-            v_pos = (180, 61)
-
-        if 'orientation' in self.options and self.options['orientation'] == "vertical":
-            ui.add_element('display-password', Text(color=BLACK, value='',
-                                                    position=v_pos,
-                                                    font=fonts.Small))
-        else:
-            # default to horizontal
-            ui.add_element('display-password', Text(color=BLACK, value='',
-                                                    position=h_pos,
-                                                    font=fonts.Small))
+        try:
+            if 'orientation' in self.options and self.options['orientation'] == "vertical":
+                pos = (self.options.get('pos_x', 180), self.options.get('pos_y', 61))
+                ui.add_element('display-password', Text(color=BLACK, value='',
+                                                        position=pos,
+                                                        font=fonts.Small))
+            else:
+                # default to horizontal
+                pos = (self.options.get('pos_x', 0), self.options.get('pos_y', 91))
+                ui.add_element('display-password', Text(color=BLACK, value='',
+                                                        position=pos,
+                                                        font=fonts.Small))
+        except Exception as e:
+            logging.exception(e)
 
     def on_unload(self, ui):
         try:
