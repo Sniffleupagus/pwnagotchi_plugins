@@ -243,7 +243,7 @@ class Tweak_View(plugins.Plugin):
                     with open(self._conf_file, "w") as f:
                         f.write(json.dumps(self._tweaks, indent=4))
                 except Exception as err:
-                    ret += "<li><b>Unable to save settings:</b> %s" % repr(err)
+                    res += "<li><b>Unable to save settings:</b> %s" % repr(err)
 
                             
         except Exception as err:
