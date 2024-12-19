@@ -1,5 +1,10 @@
 import logging
 import random
+import os
+import json
+
+from os import listdir
+from pathlib import Path
 
 import pwnagotchi.plugins as plugins
 from pwnagotchi.ui.components import LabeledValue
@@ -34,6 +39,17 @@ class Spam_Peers(plugins.Plugin):
         # default message from @ABE's design specification :)
         self.messages = [ "THIS TOWN AINT BIG ENOUGH FOR THE 2 OF US" ]
         self.known_peers = []
+        for f in os.listdir("/root/peers"):
+            with open("/root/peers/" + f, 'r') as fp:
+                p = json.load(fp)
+            try:
+                name=p['advertisement']['name']
+                logging.info("Known peer %s %s" % (name, Path(f).stem))
+                self.known_peers.append(Path(f).stem)
+            except Exception as e:
+                logging.info("Unknown peer %s %s" % (Path(f).stem, repr(p)))
+
+        logging.info("I know %d peers" % len(self.known_peers))
 
     # called when the plugin is loaded
     def on_loaded(self):
