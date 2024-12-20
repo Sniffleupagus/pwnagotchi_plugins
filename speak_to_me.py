@@ -7,11 +7,15 @@
 from threading import Event
 import _thread
 import random
+import json
 import logging
+import html
 import time
 import os
+import re
 import subprocess
-import json
+from urllib.parse import urlparse, unquote
+
 
 import pwnagotchi.plugins as plugins
 from pwnagotchi.ui.components import LabeledValue
@@ -26,8 +30,11 @@ class SpeakToMe(plugins.Plugin):
 
     def _speak(self, msg):
         if len(msg) > 0:
-            self.logger.info("[SPEAK] '%s'" % (msg))
+            for pat, rep in self.options.get("dictionary", { r'pwn(.*)$' : r'pohn\1', }).items():
+                msg = re.sub(pat, rep, msg)
 
+            self.logger.info("[SPEAK] '%s'" % (msg))
+            msg += " "
             voice = subprocess.run(['espeak-ng', '-vStorm+f5', '--stdin'], stdout=subprocess.PIPE, input=msg, encoding='ascii')
             
     # thread stuff copied from plugins/default/led.py
@@ -74,8 +81,18 @@ class SpeakToMe(plugins.Plugin):
     # must return a html page
     # IMPORTANT: If you use "POST"s, add a csrf-token (via csrf_token() and render_template_string)
     def on_webhook(self, path, request):
-        self.logger.info("[Morse] Web hook: %s" % repr(request))
-        return "<html><body>Woohoo!</body></html>"
+        try:
+            logging.info("Web hook: %s" % repr(request))
+            logging.info("%s" % dir(request))
+            method = request.method
+            path = request.path
+            query = unquote(request.query_string.decode('utf-8'))
+
+            self._queue_message(query)
+            return "<html><body>Woohoo! %s: say %s</body></html>" % (path, query)
+        except Exception as e:
+            logging.exception(e)
+            return "<html><body>Error! %s</body></html>" % (e)
 
     # called when the plugin is loaded
     def on_loaded(self):
