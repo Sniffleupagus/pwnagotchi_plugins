@@ -15,7 +15,7 @@ from flask import render_template_string
 
 class auto_tune(plugins.Plugin):
     __author__ = 'Sniffleupagus'
-    __version__ = '1.0.0'
+    __version__ = '1.0.1'
     __license__ = 'GPL3'
     __description__ = 'A plugin that adjust AUTO mode parameters'
 
@@ -383,7 +383,7 @@ class auto_tune(plugins.Plugin):
             self._agent._history = {}  # clear "max_interactions" data
             self._agent.run("wifi.recon clear")
             self._agent.run("wifi.clear")
-        if agent._config['ai']['enabled']:
+        if agent._config.get('ai', {}).get('enabled', False):
             logging.info("Auto_Tune is inactive when AI is enabled.")
         else:
             logging.info("Auto_Tune is active! options = %s" % repr(self.options))
@@ -412,9 +412,6 @@ class auto_tune(plugins.Plugin):
     def on_wifi_update(self, agent, access_points):
         # check aps and update active channels
         try:
-            #if agent._config['ai']['enabled']:
-            #    return
-
             active_channels = []
             self._histogram["loops"] = self._histogram["loops"] + 1
             for ap in access_points:
