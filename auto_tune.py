@@ -412,9 +412,6 @@ class auto_tune(plugins.Plugin):
     def on_wifi_update(self, agent, access_points):
         # check aps and update active channels
         try:
-            #if agent._config.get('ai', {}).get('enabled', False):
-            #    return
-
             active_channels = []
             self._histogram["loops"] = self._histogram["loops"] + 1
             for ap in access_points:
