@@ -440,7 +440,7 @@ class auto_tune(plugins.Plugin):
     # called when an epoch is over (where an epoch is a single loop of the main algorithm)
     def on_epoch(self, agent, epoch, epoch_data):
         # pick set of channels for next time
-        if agent._config['ai']['enabled']:
+        if agent._config.get('ai', {}).get('enabled', False):
             return
 
         try:
