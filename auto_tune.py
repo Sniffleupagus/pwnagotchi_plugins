@@ -15,7 +15,7 @@ from flask import render_template_string
 
 class auto_tune(plugins.Plugin):
     __author__ = 'Sniffleupagus'
-    __version__ = '1.0.0'
+    __version__ = '1.0.1'
     __license__ = 'GPL3'
     __description__ = 'A plugin that adjust AUTO mode parameters'
 
@@ -117,6 +117,8 @@ class auto_tune(plugins.Plugin):
         self._known_aps = {}          # dict of all APs by normalized name+mac
         self._known_clients = {}      # dict of all clients by normalized APmac+STAmac (many clients to not have names)
         self._agent = None            # local copy of the pwnagotchi agent, available after on_ready
+
+        self._orig_mode = 'AUTO'
 
         self.descriptions = {         # descriptions of personality variables displayed in webui
             "advertise": "enable/disable advertising to mesh peers",
@@ -381,20 +383,28 @@ class auto_tune(plugins.Plugin):
             self._agent._history = {}  # clear "max_interactions" data
             self._agent.run("wifi.recon clear")
             self._agent.run("wifi.clear")
-        if agent._config['ai']['enabled']:
+        if agent._config.get('ai', {}).get('enabled', False):
             logging.info("Auto_Tune is inactive when AI is enabled.")
         else:
             logging.info("Auto_Tune is active! options = %s" % repr(self.options))
 
     # called before the plugin is unloaded
     def on_unload(self, ui):
-        ui.set('mode', 'AUTO')
+        ui.set('mode', self._orig_mode)
+
+    def on_ui_setup(self, ui):
+        self._ui = ui
+        self._orig_mode = ui.get('mode')
+
+        if self._orig_mode != 'MANU':
+            ui.set('mode', 'AT')
 
     def on_ui_update(self, ui):
         try:
-            stats = self._chistos
-            mode = 'AT(%d/%d)' % (stats.get('Current APs',{}).get(-1,0), stats.get('Unique APs',{}).get(-1,0))
-            ui.set('mode', mode)
+            if self._orig_mode != 'MANU':
+                stats = self._chistos
+                mode = 'AT(%d/%d)' % (stats.get('Current APs',{}).get(-1,0), stats.get('Unique APs',{}).get(-1,0))
+                ui.set('mode', mode)
         except Exception as e:
             logging.exception(e)
 
@@ -402,9 +412,6 @@ class auto_tune(plugins.Plugin):
     def on_wifi_update(self, agent, access_points):
         # check aps and update active channels
         try:
-            #if agent._config['ai']['enabled']:
-            #    return
-
             active_channels = []
             self._histogram["loops"] = self._histogram["loops"] + 1
             for ap in access_points:
@@ -430,7 +437,7 @@ class auto_tune(plugins.Plugin):
     # called when an epoch is over (where an epoch is a single loop of the main algorithm)
     def on_epoch(self, agent, epoch, epoch_data):
         # pick set of channels for next time
-        if agent._config['ai']['enabled']:
+        if agent._config.get('ai', {}).get('enabled', False):
             return
 
         try:
