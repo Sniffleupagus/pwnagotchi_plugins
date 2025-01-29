@@ -315,6 +315,7 @@ class Touch_Screen(plugins.Plugin):
     # called before the plugin is unloaded
     def on_unload(self, ui):
         try:
+            self.running = False
             # stop the thread
             self.keepGoing = False
             if self._ts_thread:

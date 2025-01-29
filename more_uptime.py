@@ -30,6 +30,7 @@ class More_Uptime(plugins.Plugin):
     # called before the plugin is unloaded
     def on_unload(self, ui):
         try:
+            self.running = False
             if ui.has_element('more_uptime'):
                 ui.remove_element('more_uptime')
             uptimes = open('/proc/uptime').read().split()

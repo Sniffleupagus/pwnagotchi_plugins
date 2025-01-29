@@ -204,7 +204,7 @@ class GPS_More(plugins.Plugin):
         except Exception:
             # Set default value based on display type
             spd_pos = (127, 102)
-            if ui.is_waveshare_v2() or ui.is_waveshare_v3():
+            if ui.is_waveshare_v2() or ui.is_waveshare_v3() or ui.is_waveshare_v4():
                 lat_pos = (127, 78)
                 lon_pos = (122, 87)
                 alt_pos = (127, 97)
