@@ -38,13 +38,14 @@ class WifiQR(Widget):
         self.qr.add_data(wifi_data)
         #self.img = qrcode.make(wifi_data)
         self.img = self.qr.make_image(fill_color="black", back_color="white")
-        logging.info("QR Created: %s" % repr(self.img))
+        logging.debug("QR Created: %s" % repr(self.img))
         self.img.save("/tmp/qrcode.png")
         self.img = self.img.convert('RGB')
         self.xy[2] = self.xy[0] + self.img.width
         self.xy[3] = self.xy[1] + self.img.height
+
     def draw(self, canvas, drawer):
-        logging.info("QR display")
+        logging.debug("QR display")
         canvas.paste(self.img, self.xy)
 
 
@@ -63,7 +64,7 @@ class DisplayPassword(plugins.Plugin):
             if mtime == self.potfile_mtime:
                 logging.debug("Potfile unchanged.")
             else:
-                logging.info("Potfile changed. Reloading")
+                logging.info("Reading potfile.")
                 self.potfile_mtime = mtime
                 with open(fname) as f:
                     self.cracked = {}
@@ -90,10 +91,11 @@ class DisplayPassword(plugins.Plugin):
     def on_ready(self, agent):
         self._agent = agent
 
-        logging.info("unit is ready")
         # wipe out memory of APs to get notifications sooner
         if self.options.get("debug", False):
             agent.run('wifi.clear')
+
+        self.check_aps(agent._access_points)
 
     def on_ui_setup(self, ui):
         self._ui = ui
@@ -102,7 +104,7 @@ class DisplayPassword(plugins.Plugin):
             self.text_elem = Text(color=BLACK, value='',
                                   position=pos,
                                   font=fonts.Small)
-            ui.add_element('display-password', self.text_elem)                
+            ui.add_element('display-password', self.text_elem)              
         except Exception as e:
             logging.exception(e)
 
@@ -138,12 +140,12 @@ class DisplayPassword(plugins.Plugin):
                 logging.debug("APmac: %s, %s" % (self.cracked[mac].strip(), repr(ap)))
                 (amac, smac, assid, apass) = self.cracked[mac].strip().split(':', 3)
                 if ssid == assid:
-                    logging.info("Found: %s %s ? %s" % (mac, ssid, self.cracked[mac]))
+                    logging.debug("Found: %s %s ? %s" % (mac, ssid, self.cracked[mac]))
                     self.found[mac] = [assid, apass, rssi]
             elif ssid in self.cracked:                
                 logging.debug("APssid: %s, %s" % (self.cracked[ssid].strip(), repr(ap)))
                 (amac, smac, assid, apass) = self.cracked[ssid].strip().split(':', 3)
-                logging.info("Found: %s %s ? %s" % (mac, ssid, self.cracked[ssid]))
+                logging.debug("Found: %s %s ? %s" % (mac, ssid, self.cracked[ssid]))
                 self.found[mac] = [assid, apass, rssi]
             else:
                 logging.debug("AP: %s, %s not found" % (mac, ssid))
@@ -196,7 +198,7 @@ class DisplayPassword(plugins.Plugin):
           logging.exception(e)
 
     def on_touch_release(self, ts, ui, ui_element, touch_data):
-        logging.info("Touch release: %s" % repr(touch_data));
+        logging.debug("Touch release: %s" % repr(touch_data));
         try:
             if self.qr_code:
                 # if qr_code is being displayed
@@ -207,17 +209,24 @@ class DisplayPassword(plugins.Plugin):
                     p[1] > tpos[1] and
                     p[1] < tpos[3]):
                     
-                    logging.info("Close QR code")
+                    logging.debug("Close QR code")
                     ui.remove_element('dp-qrcode')
                     del self.qr_code
                     self.qr_code = None
                     ui.update(force=True)
             else:
                 # if touched the password location, pop up a QR code
-                logging.info("BBox is %s" % (repr(self.text_elem.xy)))
+                bbox = self.text_elem.font.getbbox(ui.get('display-password'))
                 p = touch_data['point']
                 tpos = self.text_elem.xy
-                if abs(p[0] - tpos[0]) < 20 and abs(p[1] - tpos[1]) < 20:
+                rbox = (tpos[0] + bbox[0], tpos[1] + bbox[1],
+                        tpos[0] + bbox[2], tpos[1] + bbox[3])
+                logging.debug("BBox is %s" % (repr(rbox)))
+                logging.debug("Touch at %s" % (repr(p)))
+                if (p[0] > tpos[0] + bbox[0] and
+                    p[0] < tpos[0] + bbox[2] and
+                    p[1] > tpos[1] + bbox[1] and
+                    p[1] < tpos[1] + bbox[3]):
                     logging.info("Show QR code (%s)" % self._lastpass)
                     if self._lastpass:
                         ssid, passwd, rssi = self._lastpass
