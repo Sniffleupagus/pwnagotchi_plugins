@@ -10,7 +10,7 @@
 # Modified by Sniffleupagus
 #
 ###############################################################
-from pwnagotchi.ui.components import Text
+from pwnagotchi.ui.components import Text, Widget
 from pwnagotchi.ui.view import BLACK
 import pwnagotchi.ui.fonts as fonts
 import pwnagotchi.plugins as plugins
@@ -20,6 +20,33 @@ import os
 import operator
 import random
 import time
+import qrcode
+
+class WifiQR(Widget):
+    def __init__(self, ssid, passwd, xy=[100,1, 177, 87], color = 0):
+        super().__init__(xy, color)
+        self.ssid = ssid
+        self.passwd = passwd
+        self.xy = xy
+        self.color = color
+        
+        self.qr = qrcode.QRCode(version=4,
+                                error_correction=qrcode.constants.ERROR_CORRECT_L,
+                                box_size=3,
+                                )
+        wifi_data = f"WIFI:T:WPA;S:{ssid};P:{passwd};;"
+        self.qr.add_data(wifi_data)
+        #self.img = qrcode.make(wifi_data)
+        self.img = self.qr.make_image(fill_color="black", back_color="white")
+        logging.info("QR Created: %s" % repr(self.img))
+        self.img.save("/tmp/qrcode.png")
+        self.img = self.img.convert('RGB')
+        self.xy[2] = self.xy[0] + self.img.width
+        self.xy[3] = self.xy[1] + self.img.height
+    def draw(self, canvas, drawer):
+        logging.info("QR display")
+        canvas.paste(self.img, self.xy)
+
 
 class DisplayPassword(plugins.Plugin):
     __author__ = '@nagy_craig, Sniffleupagus'
@@ -53,6 +80,8 @@ class DisplayPassword(plugins.Plugin):
         self._lastidx = 0
         self._next_change_time = 0
         self.potfile_mtime=0
+        self.qr_code = None
+        self.text_elem = None
     
     def on_loaded(self):
         logging.info("display-password loaded")
@@ -69,17 +98,11 @@ class DisplayPassword(plugins.Plugin):
     def on_ui_setup(self, ui):
         self._ui = ui
         try:
-            if 'orientation' in self.options and self.options['orientation'] == "vertical":
-                pos = (self.options.get('pos_x', 180), self.options.get('pos_y', 61))
-                ui.add_element('display-password', Text(color=BLACK, value='',
-                                                        position=pos,
-                                                        font=fonts.Small))
-            else:
-                # default to horizontal
-                pos = (self.options.get('pos_x', 0), self.options.get('pos_y', 91))
-                ui.add_element('display-password', Text(color=BLACK, value='',
-                                                        position=pos,
-                                                        font=fonts.Small))
+            pos = (self.options.get('pos_x', 0), self.options.get('pos_y', 91))
+            self.text_elem = Text(color=BLACK, value='',
+                                  position=pos,
+                                  font=fonts.Small)
+            ui.add_element('display-password', self.text_elem)                
         except Exception as e:
             logging.exception(e)
 
@@ -87,6 +110,8 @@ class DisplayPassword(plugins.Plugin):
         try:
             with ui._lock:
                 ui.remove_element('display-password')
+                if self.qr_code:
+                    ui.remove_element('dp-qrcode')
         except Exception as e:
             logging.info(e)
 
@@ -114,12 +139,12 @@ class DisplayPassword(plugins.Plugin):
                 (amac, smac, assid, apass) = self.cracked[mac].strip().split(':', 3)
                 if ssid == assid:
                     logging.info("Found: %s %s ? %s" % (mac, ssid, self.cracked[mac]))
-                    self.found[mac] = "%s:%s (%s)" % (assid, apass, rssi)
+                    self.found[mac] = [assid, apass, rssi]
             elif ssid in self.cracked:                
                 logging.debug("APssid: %s, %s" % (self.cracked[ssid].strip(), repr(ap)))
                 (amac, smac, assid, apass) = self.cracked[ssid].strip().split(':', 3)
                 logging.info("Found: %s %s ? %s" % (mac, ssid, self.cracked[ssid]))
-                self.found[mac] = "%s-%s (%s)" % (assid, apass, rssi)
+                self.found[mac] = [assid, apass, rssi]
             else:
                 logging.debug("AP: %s, %s not found" % (mac, ssid))
       except Exception as e:
@@ -137,14 +162,15 @@ class DisplayPassword(plugins.Plugin):
             if mac in self.cracked:
                 (amac, smac, assid, apass) = self.cracked[mac].strip().split(':', 3)
                 logging.info("Popped up: %s %s ? %s" % (mac, ssid, self.cracked[mac]))
-                self.found[amac] = "%s:%s (%s)" % (assid, apass, rssi)
-                self._ui.set('display-password', self.found[amac])
+                self.found[amac] = [assid, apass, rssi]
+                self._ui.set('display-password', "%s: %s (%s)" % (assid, apass, rssi))
+                self._lastpass = self.found[amac]
             elif ssid in self.cracked:
                 (amac, smac, assid, apass) = self.cracked[ssid].strip().split(':', 3)
                 logging.info("Popped up: %s %s ? %s" % (mac, ssid, self.cracked[ssid]))
-                self.found[amac] = "%s-%s (%s)" % (assid, apass, rssi)
-                self._ui.set('display-password', self.found[amac])
-
+                self.found[amac] = [assid, apass, rssi]
+                self._ui.set('display-password', "%s: %s (%s)" % (assid, apass, rssi))
+                self._lastpass = self.found[amac]
         except Exception as e:
             logging.exception(repr(e))
 
@@ -161,10 +187,44 @@ class DisplayPassword(plugins.Plugin):
                 else:
                     self._lastidx = (self._lastidx + 1) % len(self.found)
                     self._lastpass = self.found[list(self.found)[self._lastidx]]
-                ui.set('display-password', self._lastpass)
-                self._next_change_time = now + self.options.get("update_interval", 5)
+                ui.set('display-password', "%s: %s (%s)" % (self._lastpass[0], self._lastpass[1], self._lastpass[2]))
+                self._next_change_time = now + self.options.get("update_interval", 8)
         else:
-            self._lastpass = ""
-            ui.set('display-password', self._lastpass)
+            self._lastpass = None
+            ui.set('display-password', "")
       except Exception as e:
           logging.exception(e)
+
+    def on_touch_release(self, ts, ui, ui_element, touch_data):
+        logging.info("Touch release: %s" % repr(touch_data));
+        try:
+            if self.qr_code:
+                # if qr_code is being displayed
+                p = touch_data['point']
+                tpos = self.qr_code.xy
+                if (p[0] > tpos[0] and
+                    p[0] < tpos[2] and
+                    p[1] > tpos[1] and
+                    p[1] < tpos[3]):
+                    
+                    logging.info("Close QR code")
+                    ui.remove_element('dp-qrcode')
+                    del self.qr_code
+                    self.qr_code = None
+                    ui.update(force=True)
+            else:
+                # if touched the password location, pop up a QR code
+                logging.info("BBox is %s" % (repr(self.text_elem.xy)))
+                p = touch_data['point']
+                tpos = self.text_elem.xy
+                if abs(p[0] - tpos[0]) < 20 and abs(p[1] - tpos[1]) < 20:
+                    logging.info("Show QR code (%s)" % self._lastpass)
+                    if self._lastpass:
+                        ssid, passwd, rssi = self._lastpass
+                        self.qr_code = WifiQR(ssid, passwd)
+                        ui.add_element('dp-qrcode', self.qr_code)
+                        ui.update(force=True)
+
+        except Exception as err:
+            logging.exception("%s" % repr(err))
+        
