@@ -4,7 +4,9 @@ import sys
 import threading
 import time
 import os
+import prctl
 import RPi.GPIO as GPIO
+from smbus import SMBus
 
 import numpy as np
 
@@ -107,6 +109,136 @@ class Touch_Button(Widget):
         except Exception as e:
             logging(repr(e))
 
+
+class gt1151_touchscreen:
+    def __init__(self, config):
+        try:
+            self.config = config
+
+            # epaper pins
+            self.EPD_RST_PIN = config.get("EPD_RST_PIN", 17)
+            self.EPD_DC_PIN = config.get("EPD_DC_PIN", 25)
+            self.EPD_CS_PIN = config.get("EPD_CS_PIN", 8)
+            self.EPD_BUSY_PIN = config.get("EPD_BUSY_PIN", 24)
+
+            # touchscreen pins
+            self.TRST = config.get("reset_pin", 22)
+            self.INT = config.get("int_pin", 27)
+            self.bus = SMBus(config.get("i2c_bus", 1))
+            self.address = config.get("i2c_addr", 0x14)
+
+            GPIO.setmode(GPIO.BCM)
+            GPIO.setwarnings(True)
+            GPIO.setup(self.TRST, GPIO.OUT)
+            GPIO.setup(self.INT, GPIO.IN)
+
+            # touch screen state
+            self.Touching = False
+            self.TouchCount = 0
+            self.touches = {}
+            self.X = [0, 1, 2, 3, 4]
+            self.Y = [0, 1, 2, 3, 4]
+            self.S = [0, 1, 2, 3, 4]
+
+            logging.info("GT1151: RST %s INT %s address 0x%x bus %s" % (self.TRST, self.INT, self.address, config.get("i2c_bus", 1)))
+        except Exception as e:
+            logging.exception(e)
+
+    def digital_write(self, pin, value):
+        GPIO.output(pin, value)
+
+    def digital_read(self, pin):
+        return GPIO.input(pin)
+
+    def delay_ms(self, delaytime):
+        time.sleep(delaytime / 1000.0)
+
+    def spi_writebyte(self, data):
+        spi.writebytes(data)
+
+    def spi_writebyte2(self, data):
+        spi.writebytes2(data)
+
+    def i2c_writebyte(self, reg, value):
+        self.bus.write_word_data(self.address, (reg>>8) & 0xff, (reg & 0xff) | ((value & 0xff) << 8))
+
+    def i2c_write(self, reg):
+        logging.debug("Address = %s" % self.address)
+        self.bus.write_byte_data(self.address, (reg>>8) & 0xff, reg & 0xff)
+
+    def i2c_readbyte(self, reg, len):
+        self.i2c_write(reg)
+        rbuf = []
+        for i in range(len):
+            rbuf.append(int(self.bus.read_byte(self.address)))
+        return rbuf
+
+    def module_init(self):
+        GPIO.setmode(GPIO.BCM)
+        GPIO.setwarnings(False)
+        GPIO.setup(self.TRST, GPIO.OUT)
+        GPIO.setup(self.INT, GPIO.IN)
+
+        return 0
+
+    def reset(self):
+        self.digital_write(self.TRST, 1)
+        self.delay_ms(100)
+        self.digital_write(self.TRST, 0)
+        self.delay_ms(100)
+        self.digital_write(self.TRST, 1)
+        self.delay_ms(100)
+        buf = self.i2c_readbyte(0x8140, 4)
+        logging.info("Version: %s" % repr(buf))
+        
+    
+    def touchscan(self):
+      try:
+        buf = self.i2c_readbyte(0x814E, 1)
+        touching = (buf[0]&0x80 != 0x00)
+        if not touching:
+            logging.info("not touching %s" % buf)
+            self.delay_ms(10)
+        else:
+            touchCount = buf[0] & 0x0f
+            logging.debug("**** touching %s %d" % (buf, touchCount))
+            buf = self.i2c_readbyte(0x814F, touchCount * 8)
+            self.i2c_writebyte(0x814E, 0)
+
+            logging.debug("Read: %s" % repr(buf))
+            touches = {}
+            for t in range(touchCount):
+                touchid = buf[0 + 8 * t]
+                x = (buf[2 + 8*t] << 8) + buf[1 + 8*t]
+                y = (buf[4 + 8*t] << 8) + buf[3 + 8*t]
+                s = (buf[6 + 8*t] << 8) + buf[5 + 8*t]
+                if t not in self.touches:
+                    logging.info("Touching %s: %s, %s, %s" % (touchid, x, y, s))
+                
+                touches[touchid] = {'x': x,
+                                    'y': y,
+                                    's': s }
+            for t in self.touches:
+                touch = self.touches[t]
+                if t not in touches:
+                    if touch['s'] > 0:   # process once more as 0 for release
+                        touch['s'] = 0
+                        touches[t] = touch
+                        logging.info("###                  Release %s" % t)
+            self.touches = touches
+            
+        return self.touches
+      except Exception as e:
+          logging.exception(e)
+
+    def module_exit(self):
+        self.bus.close()
+        GPIO.output(self.TRST, 0)
+        time.sleep(0.1)
+        GPIO.output(self.TRST, 1)
+
+        #GPIO.cleanup()
+        logging.info("GT1151 closed")
 
 def singleton(cls, *args, **kw):
     instances = {}
@@ -220,7 +352,8 @@ class Touch_Screen(plugins.Plugin):
 
     def touchScreenHandler(self, ts_device=None):
         try:
-            if not ts_device:
+            prctl.set_name("TS Loop")
+            if self.options.get("ts_type", None) == "ts_print":
                 # try to find a touchscreen device
                 evtest = Popen(("/usr/bin/evtest"), stdout=PIPE, stderr=PIPE,
                                universal_newlines=True)
@@ -242,81 +375,121 @@ class Touch_Screen(plugins.Plugin):
                     except Exception as e:
                         logging.error(repr(e))
 
-            self.keepGoing = True
-            while ts_device and self.keepGoing:
-                cmd = "/usr/bin/ts_print"
-                os.environ["TSLIB_TSDEVICE"] = "%s" % ts_device
-                self.touchscreen = Popen(['stdbuf', '-o0', cmd], env=os.environ, stdout=PIPE, universal_newlines=True, shell=False) if not self.needsAptPackages else None
+                self.keepGoing = True
+                while ts_device and self.keepGoing:
+                    cmd = "/usr/bin/ts_print"
+                    os.environ["TSLIB_TSDEVICE"] = "%s" % ts_device
+                    self.touchscreen = Popen(['stdbuf', '-o0', cmd], env=os.environ, stdout=PIPE, universal_newlines=True, shell=False) if not self.needsAptPackages else None
 
-                if self.touchscreen:
-                    logging.info("ts_print running")
-                    self.running = True
-                    for output in self.touchscreen.stdout:
-                        if not output or not self.keepGoing:
-                            break
-                        output = output.strip()
-                        logging.debug("Touch '%s'" % output)
-                        (tstamp, y, x, depth) = output.split()
-                        x = int(x)
-                        y = int(y)
+                    if self.touchscreen:
+                        logging.info("ts_print running")
+                        self.running = True
+                        for output in self.touchscreen.stdout:
+                            if not output or not self.keepGoing:
+                                break
+                            output = output.strip()
+                            logging.debug("Touch '%s'" % output)
+                            (tstamp, y, x, depth) = output.split()
+                            x = int(x)
+                            y = int(y)
 
-                        rotation = self._agent._config['ui']['display']['rotation'] if self._agent else 180
+                            rotation = self._agent._config['ui']['display']['rotation'] if self._agent else 180
 
-                        if rotation == 180: # 0,0 is top left, but touch screen 0,0 is bottom left
-                            x = self._view._width - x
-                        else:
-                            y = self._view._height - y
+                            if rotation == 180: # 0,0 is top left, but touch screen 0,0 is bottom left
+                                x = self._view._width - x
+                            else:
+                                y = self._view._height - y
 
-                        depth = int(depth)
-                        if tstamp:
-                            logging.debug("Touch %s at %s, %s" % (depth, x, y))
-                            self.process_touch([int(x),int(y)], depth)
-                    logging.info("ts_print exited")
-                    self.running = False
-                else:
-                    logging.info("No touchscreen?")
-                    self.needsAptPackages = ['evtest', 'libts-bin']
-                time.sleep(1)
+                            depth = int(depth)
+                            if tstamp:
+                                logging.debug("Touch %s at %s, %s" % (depth, x, y))
+                                self.process_touch([int(x),int(y)], depth)
+                        logging.info("ts_print exited")
+                        self.running = False
+                    else:
+                        logging.info("No touchscreen?")
+                    time.sleep(1)
+            elif self.options.get("ts_type", None) == "gt1151":
+                try:
+                    prctl.set_name("GT1151")
 
-            #err = self.touchscreen.stderr.read()
-            #logging.info(err)
+                    GPIO.setmode(GPIO.BCM)
+                    gt = gt1151_touchscreen(self.options)
+                    gt.reset()
+                    
+                    self.keepGoing = True
+
+                    flag_t = 1
+
+                    rotation = self._agent._config['ui']['display'].get('rotation', 180) if self._agent else 180
+                    in_touch = False
+
+                    while self.keepGoing:
+                        t = gt.digital_read(gt.INT)
+                        logging.debug("Loop: %s %s" % (gt.INT, t))
+                        if t == 0:
+                            touches = gt.touchscan()
+                            logging.debug("Reading: %s" % repr(touches))
+                            for t in touches:
+                                touch = touches[t]
+                                x = touch['x']
+                                y = touch['y']
+                                s = touch['s']
+                                if rotation == 180: # 0,0 is top left, but touch screen 0,0 is bottom left
+                                    x = self._view._width - x
+                                else:
+                                    y = self._view._height - y
+
+                                logging.debug("Touch %s: %s" % (t, touch))
+                                self.process_touch([x, y], s)
+                                         
+                        time.sleep(0.1)
+
+                    logging.info("          $$$         Loop exited")
+                    gt.module_exit()
+                except Exception as e:
+                    logging.exception("Goodix: %s" % e)
         except Exception as e:
             logging.info("Handler: %s" % repr(e))
     
     # called when http://<host>:<port>/plugins/<plugin>/ is called
     # must return a html page
     # IMPORTANT: If you use "POST"s, add a csrf-token (via csrf_token() and render_template_string)
-    def on_webhook(self, path, request):
+    #def on_webhook(self, path, request):
         # define which elements are active or not
         # show pwny image. send clicks through
-        pass
+    #    pass
 
     # called when the plugin is loaded
     def on_loaded(self):
-        logging.info("loaded with options = " % self.options)
+        #logging.info("loaded with options = " % self.options)
 
         # to test pimoroni displayhatmini buttons, uncomment below, or define in your config.toml
         ##if 'gpios' not in self.options:
         ##    self.options['gpios'] = {'ok': 6, 'back' : 5, 'next': 24, 'prev': 16}   # Pimoroni display hat mini
         try:
             self.init_gpio()
+            pass
         except Exception as e:
             logging.warning(repr(e))
 
         # start touch screen background thread
         try:
             self.init_ts_handler()
+
         except Exception as e:
             logging.warning(repr(e))
 
         # notify plugins
         plugins.on("touch_ready", self)
+        logging.info("loaded with options = %s" % self.options)
 
     # called before the plugin is unloaded
     def on_unload(self, ui):
         try:
             # stop the thread
             self.keepGoing = False
+            flag_t = 0
             if self._ts_thread:
                 if self.touchscreen:
                     logging.debug("TERM to %s" % self.touchscreen.pid)
@@ -324,6 +497,7 @@ class Touch_Screen(plugins.Plugin):
                 logging.debug("Waiting for thread to exit")
                 self._ts_thread.join()
                 logging.info("And its done.")
+            
         except Exception as e:
             logging.error("%s" % repr(e))
 
@@ -373,7 +547,10 @@ class Touch_Screen(plugins.Plugin):
         pass
 
     def process_touch(self, tpoint, depth):
-        logging.info("PT: %s: %s" % (repr(tpoint), repr(depth)))
+        if not self._view:
+            return
+
+        logging.debug("PT: %s: %s" % (repr(tpoint), repr(depth)))
 
         touch_data = { 'point':tpoint, 'pressure': depth }
 
@@ -381,7 +558,7 @@ class Touch_Screen(plugins.Plugin):
         ui_elements = self._view._state._state
         touch_element = None
         touch_elements = list(filter(lambda x: hasattr(ui_elements[x], "state"), ui_elements.keys()))
-        logging.info("Touchable: %s" % repr(touch_elements))
+        logging.debug("Touchable: %s" % repr(touch_elements))
         try:
             if int(depth) > 0:
                 command = "touch_move" if self._beingTouched else "touch_press"
@@ -393,9 +570,9 @@ class Touch_Screen(plugins.Plugin):
                 command = None
 
             for te in touch_elements:
-                logging.info("Touching %s, %s" % (te, repr(ui_elements[te].xy)))
+                logging.debug("Checking %s, %s" % (te, repr(ui_elements[te].xy)))
                 if self.pointInBox(tpoint, ui_elements[te].xy):
-                    logging.debug("Touch element %s: %s @ %s" % (repr(te),
+                    logging.info("Touched element %s: %s @ %s" % (repr(te),
                                                                 depth,
                                                                 repr(tpoint)))
                     touch_element = te
@@ -425,7 +602,7 @@ class Touch_Screen(plugins.Plugin):
                     plugins.on(command, self, self._view, touch_element, touch_data)
 
             else:
-                logging.debug("Touch Command: %s, data: %s" % (command, repr(touch_data)))
+                logging.info("Touch Command: %s, data: %s" % (command, repr(touch_data)))
                 plugins.on(command, self, self._view, touch_element, touch_data)
 
     # button handlers to cycle through touch areas and click
@@ -494,11 +671,12 @@ class Touch_Screen(plugins.Plugin):
     # called when everything is ready and the main loop is about to start
     def on_ready(self, agent):
         self._agent = agent    # save for posterity
+        self._view = self._agent._view
 
     def init_gpio(self):
         # set up GPIO - next, previous, ok, back
+        GPIO.setmode(GPIO.BCM)
         if 'gpios' in self.options:
-            GPIO.setmode(GPIO.BCM)
             if 'ok' in self.options['gpios']:
                 try:
                     GPIO.setup(int(self.options['gpios']['ok']), GPIO.IN, GPIO.PUD_UP)
