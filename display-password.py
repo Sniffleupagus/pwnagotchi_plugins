@@ -12,6 +12,7 @@
 ###############################################################
 from pwnagotchi.ui.components import Text, Widget
 from pwnagotchi.ui.view import BLACK
+import RPi.GPIO as GPIO
 import pwnagotchi.ui.fonts as fonts
 import pwnagotchi.plugins as plugins
 import pwnagotchi
@@ -85,10 +86,48 @@ class DisplayPassword(plugins.Plugin):
         self.potfile_mtime=0
         self.qr_code = None
         self.text_elem = None
+        self.gpio = None
+        self._lastgpio = 0
     
     def on_loaded(self):
-        logging.info("display-password loaded")
+        logging.info("display-password loaded: %s" % self.options)
         self.readPotfile()
+
+        self.gpio = self.options.get("gpio", None)
+        if self.gpio:
+            GPIO.setmode(GPIO.BCM)
+            GPIO.setup(self.gpio, GPIO.IN, GPIO.PUD_UP)
+            GPIO.add_event_detect(self.gpio, GPIO.FALLING, callback=self.toggleQR,
+                                  bouncetime=800)
+
+    def toggleQR(self, channel):
+      try:
+        if not self._ui:
+            return
+
+        now = time.time()
+        if now - self._lastgpio < 0.7:
+            logging.info("Debounce %s %s" % (now, self._lastgpio))
+            return
+        self._lastgpio = now
+
+        logging.info("TOGGLE!")
+        if self.qr_code:
+            logging.info("Close QR code")
+            self._ui.remove_element('dp-qrcode')
+            del self.qr_code
+            self.qr_code = None
+            self._ui.update(force=True)
+        elif self._lastpass:
+            try:
+                ssid, passwd, rssi = self._lastpass
+                self.qr_code = WifiQR(ssid, passwd)
+                self._ui.add_element('dp-qrcode', self.qr_code)
+                self._ui.update(force=True)
+            except Exception as e:
+                logging.exception(e)
+      except Exception as e:
+          logging.exception(e)
 
     def on_ready(self, agent):
         self._agent = agent
@@ -116,8 +155,13 @@ class DisplayPassword(plugins.Plugin):
                 ui.remove_element('display-password')
                 if self.qr_code:
                     ui.remove_element('dp-qrcode')
+
         except Exception as e:
             logging.info(e)
+        if self.gpio:
+            logging.info("Cleaning GPIO")
+            GPIO.remove_event_detect(self.gpio)
+            GPIO.cleanup(self.gpio)
 
     # update from list of visible APs, and pick from the file one that matchs
     def on_unfiltered_ap_list(self, agent, access_points):
