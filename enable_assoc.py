@@ -92,10 +92,11 @@ class enable_assoc(plugins.Plugin):
             pos = (0,29,30,59)
 
         try:
+            curstate = self._agent._config['personality']['associate'] if self._agent else True
             ui.add_element('assoc_count', Touch_Button(position=pos,
                                                        color='#ccccff', alt_color='White',
                                                        outline="DarkGray",
-                                                       state=False,
+                                                       state=curstate,
                                                        text="assoc", value=0, text_color="Black",
                                                        alt_text=None, alt_text_color="Green",
                                                        font=fonts.Medium, alt_font=fonts.Medium,

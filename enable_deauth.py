@@ -82,7 +82,10 @@ class enable_deauth(plugins.Plugin):
         try:
             if ui_element == "deauth_count":
                 logging.debug("Toggling %s" % repr(self._agent._config['personality']['deauth']))
-                self._agent._config['personality']['deauth'] = self._ui._state._state['deauth_count'].state
+                self._deauth_enable = self._ui._state._state['deauth_count'].state
+                self._agent._config['personality']['deauth'] = self._deauth_enable
+                self._behave = False
+
                 logging.info("Toggled deauth to %s" % repr(self._ui._state._state['deauth_count'].state))
 
         except Exception as err:
@@ -103,9 +106,10 @@ class enable_deauth(plugins.Plugin):
                 pos = (0,36,30,59)
 
             try:
+                curstate = self._agent._config['personality']['deauth'] if self._agent else True
                 ui.add_element('deauth_count', Touch_Button(position=pos,
                                                             color='#ddddff', alt_color='White', outline='DarkGray',
-                                                            state=False, # agent._config['personality']['deauth'],
+                                                            state=curstate,
                                                             text="deauth", value=0, text_color="Black",
                                                             alt_text=None, alt_text_color="Green",
                                                             font=fonts.Medium, alt_font=fonts.Medium,
@@ -138,14 +142,20 @@ class enable_deauth(plugins.Plugin):
             logging.info("Home networks visible. Pausing")
             if self._ui:
                 d_label = self._ui._state._state['deauth_count']
-                d_label.label = d_label.label.lower()
+                try:
+                    d_label.label = d_label.label.lower()
+                except Exception as e:
+                    d_label.text = d_label.text.lower()
         elif self._behave and not oh_behave:
             self._behave = False
             logging.info("Home networks gone. Enabled: %s", self._deauth_enable)
             agent._config['personality']['deauth'] = self._deauth_enable
             if self._ui:
                 d_label = self._ui._state._state['deauth_count']
-                d_label.label = d_label.label.capitalize()
+                try:
+                    d_label.label = d_label.label.capitalize()
+                except Exception as e:
+                    d_label.text = d_label.text.capitalize()
 
 
     # Switch off deauths as soon as a home network shows up
@@ -162,11 +172,13 @@ class enable_deauth(plugins.Plugin):
                     agent._config['personality']['deauth'] = False
                     if self._ui:
                         d_label = self._ui._state._state['deauth_count']
-                        d_label.label = d_label.label.lower()
+                        try:
+                            d_label.label = d_label.label.lower()
+                        except Exception as e:
+                            d_label.text = d_label.text.lower()
 
         except Exception as e:
             logging.exception(repr(e))
-
 
     # called when the ui is updated
     def on_ui_update(self, ui):
