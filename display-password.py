@@ -23,31 +23,33 @@ import time
 import qrcode
 
 class WifiQR(Widget):
-    def __init__(self, ssid, passwd, xy=[100,1, 177, 87], color = 0):
-        super().__init__(xy, color)
+    def __init__(self, ssid, passwd, color = 0):
+        super().__init__(color)
         self.ssid = ssid
         self.passwd = passwd
-        self.xy = xy
         self.color = color
-        
-        self.qr = qrcode.QRCode(version=4,
+        self.xy = (0,0,1,1)
+
+        self.qr = qrcode.QRCode(version=None,
                                 error_correction=qrcode.constants.ERROR_CORRECT_L,
-                                box_size=3,
+                                box_size=3, border=3
                                 )
         wifi_data = f"WIFI:T:WPA;S:{ssid};P:{passwd};;"
         self.qr.add_data(wifi_data)
         #self.img = qrcode.make(wifi_data)
-        self.img = self.qr.make_image(fill_color="black", back_color="white")
+        self.img = self.qr.make_image(fit=True, fill_color="black", back_color="white")
         logging.debug("QR Created: %s" % repr(self.img))
         self.img.save("/tmp/qrcode.png")
         self.img = self.img.convert('RGB')
-        self.xy[2] = self.xy[0] + self.img.width
-        self.xy[3] = self.xy[1] + self.img.height
 
     def draw(self, canvas, drawer):
         logging.debug("QR display")
+        self.xy = (int(canvas.width/2 - self.img.width/2),
+              int(canvas.height/2 - self.img.height/2),
+              int(canvas.width/2 - self.img.width/2 + self.img.width),
+              int(canvas.height/2 - self.img.height/2 + self.img.height)
+              )
         canvas.paste(self.img, self.xy)
-
 
 class DisplayPassword(plugins.Plugin):
     __author__ = '@nagy_craig, Sniffleupagus'
