@@ -432,8 +432,8 @@ class Touch_Screen(plugins.Plugin):
                             logging.debug("Reading: %s" % repr(touches))
                             for t in touches:
                                 touch = touches[t]
-                                x = touch['x']
-                                y = touch['y']
+                                x = touch['y']
+                                y = touch['x']
                                 s = touch['s']
                                 if rotation == 180: # 0,0 is top left, but touch screen 0,0 is bottom left
                                     x = self._view._width - x
@@ -602,7 +602,7 @@ class Touch_Screen(plugins.Plugin):
                     plugins.on(command, self, self._view, touch_element, touch_data)
 
             else:
-                logging.info("Touch Command: %s, data: %s" % (command, repr(touch_data)))
+                logging.debug("Touch Command: %s, data: %s" % (command, repr(touch_data)))
                 plugins.on(command, self, self._view, touch_element, touch_data)
 
     # button handlers to cycle through touch areas and click
