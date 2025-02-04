@@ -31,7 +31,7 @@ class WifiQR(Widget):
         self.color = color
         self.xy = (0,0,1,1)
 
-        self.qr = qrcode.QRCode(version=None,
+        self.qr = qrcode.QRCode(version=5,
                                 error_correction=qrcode.constants.ERROR_CORRECT_L,
                                 box_size=3, border=3
                                 )
@@ -40,11 +40,11 @@ class WifiQR(Widget):
         #self.img = qrcode.make(wifi_data)
         self.img = self.qr.make_image(fit=True, fill_color="black", back_color="white")
         logging.debug("QR Created: %s" % repr(self.img))
-        self.img.save("/tmp/qrcode.png")
-        self.img = self.img.convert('RGB')
+        #self.img.save("/tmp/qrcode.png")
 
     def draw(self, canvas, drawer):
         logging.debug("QR display")
+        self.img = self.img.convert(canvas.mode)
         self.xy = (int(canvas.width/2 - self.img.width/2),
               int(canvas.height/2 - self.img.height/2),
               int(canvas.width/2 - self.img.width/2 + self.img.width),
