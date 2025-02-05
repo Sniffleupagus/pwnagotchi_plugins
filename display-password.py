@@ -22,6 +22,8 @@ import os
 import operator
 import random
 import time
+from urllib.parse import urlparse, unquote
+
 try:
     import qrcode
 except Exception as e:
@@ -359,3 +361,15 @@ class DisplayPassword(plugins.Plugin):
         except Exception as err:
             logging.exception("%s" % repr(err))
         
+    def on_webhook(self, path, request):
+        try:
+            method = request.method
+            path = request.path
+            query = unquote(request.query_string.decode('utf-8'))
+            if "/toggle" in path:
+                self.toggleQR("web")
+                return "OK"
+            return "<html><body>Woohoo! %s: %s<p>Request /plugins/display-password/toggle to view QR code on screen</body></html>" % (path, query)
+        except Exception as e:
+            logging.exception(e)
+            return "<html><body>Error! %s</body></html>" % (e)
