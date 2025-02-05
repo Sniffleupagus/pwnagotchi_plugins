@@ -224,7 +224,9 @@ class gt1151_touchscreen:
                     if touch['s'] > 0:   # process once more as 0 for release
                         touch['s'] = 0
                         touches[t] = touch
-                        logging.info("###                  Release %s" % t)
+                        logging.info("### Release track %s, pos %s, %s" % (t,
+                                                                           touch['x'],
+                                                                           touch['y']))
             self.touches = touches
             
         return self.touches
@@ -558,7 +560,7 @@ class Touch_Screen(plugins.Plugin):
         ui_elements = self._view._state._state
         touch_element = None
         touch_elements = list(filter(lambda x: hasattr(ui_elements[x], "state"), ui_elements.keys()))
-        logging.debug("Touchable: %s" % repr(touch_elements))
+        logging.info("Touchable: %s" % repr(touch_elements))
         try:
             if int(depth) > 0:
                 command = "touch_move" if self._beingTouched else "touch_press"
@@ -584,7 +586,7 @@ class Touch_Screen(plugins.Plugin):
         if command:
             if touch_element:
                 button = ui_elements[touch_element]
-                if button.momentary:
+                if hasattr(button, "momentary") and button.momentary:
                     if command == "touch_press" or command == "touch_release":
                         self._view._state._changes[touch_element] = True
                     button.state = self._beingTouched
@@ -598,7 +600,7 @@ class Touch_Screen(plugins.Plugin):
                     logging.info("UI_Element %s Command: %s, handler: %s, data: %s" % (touch_element, command, ui_elements[touch_element].event_handler, repr(touch_data)))
                     plugins.one(ui_elements[touch_element].event_handler, command, self, self._view, touch_element, touch_data)
                 else:
-                    logging.info("UI_Element %s Command: %s, handler: %s, data: %s" % (touch_element, command, ui_elements[touch_element].event_handler, repr(touch_data)))
+                    logging.info("UI_Element %s Command: %s, handler: %s, data: %s" % (touch_element, command, ui_elements[touch_element], repr(touch_data)))
                     plugins.on(command, self, self._view, touch_element, touch_data)
 
             else:
