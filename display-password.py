@@ -24,7 +24,7 @@ import time
 import qrcode
 
 class WifiQR(Widget):
-    def __init__(self, ssid, passwd, color = 0, version=6, box_size=3, border=3):
+    def __init__(self, ssid, passwd, color = 0, version=6, box_size=3, border=4):
         super().__init__(color)
         self.ssid = ssid
         self.passwd = passwd
@@ -134,7 +134,7 @@ class DisplayPassword(plugins.Plugin):
         elif self._lastpass:
             try:
                 ssid, passwd, rssi = self._lastpass
-                border = self.options.get('border', 3)
+                border = self.options.get('border', 4)
                 box_size = self.options.get('box_size', 3)
                 with self._ui._lock:
                     self.qr_code = WifiQR(ssid, passwd, box_size=box_size, border=border)
@@ -214,7 +214,25 @@ class DisplayPassword(plugins.Plugin):
                 logging.debug("AP: %s, %s not found" % (mac, ssid))
       except Exception as e:
           logging.exception(e)
-    
+
+    def update_pass_display(self, ssid, pword, rssi):
+        if not self._ui:
+            return
+        if self.options.get('oneline', True):
+            # one line layout - SSID: password (rssi)
+            dp =  "%s: %s (%s)" % (ssid, pword, rssi)
+            self._ui.set('display-password', dp)
+            self.bbox = self.text_elem.font.getbbox(dp)
+        else:  # two line layout - SSID (rssi)
+            #                      password
+            dp = "%s (%s)\n%s" % (ssid, rssi, pword)
+            self._ui.set('display-password', dp)
+            parts = dp.split('\n')
+            bbox1 = self.text_elem.font.getbbox(parts[0])
+            bbox2 = self.text_elem.font.getbbox(parts[0])
+            self.bbox = (min(bbox1[0], bbox2[0]), min(bbox1[1], bbox2[1]),
+                         max(bbox1[2], bbox2[2]), (bbox2[3] + (bbox2[3] - bbox2[1]) + (bbox1[3] - bbox1[1])))
+
     def on_bcap_wifi_ap_new(self, agent, event):
         try:
             if not self._ui:
@@ -228,13 +246,13 @@ class DisplayPassword(plugins.Plugin):
                 (amac, smac, assid, apass) = self.cracked[mac].strip().split(':', 3)
                 logging.info("Popped up: %s %s ? %s" % (mac, ssid, self.cracked[mac]))
                 self.found[amac] = [assid, apass, rssi]
-                self._ui.set('display-password', "%s: %s (%s)" % (assid, apass, rssi))
+                self.update_pass_display(assid, apass, rssi)
                 self._lastpass = self.found[amac]
             elif ssid in self.cracked:
                 (amac, smac, assid, apass) = self.cracked[ssid].strip().split(':', 3)
                 logging.info("Popped up: %s %s ? %s" % (mac, ssid, self.cracked[ssid]))
                 self.found[amac] = [assid, apass, rssi]
-                self._ui.set('display-password', "%s: %s (%s)" % (assid, apass, rssi))
+                self.update_pass_display(assid, apass, rssi)
                 self._lastpass = self.found[amac]
         except Exception as e:
             logging.exception(repr(e))
@@ -252,7 +270,7 @@ class DisplayPassword(plugins.Plugin):
                 else:
                     self._lastidx = (self._lastidx + 1) % len(self.found)
                     self._lastpass = self.found[list(self.found)[self._lastidx]]
-                ui.set('display-password', "%s: %s (%s)" % (self._lastpass[0], self._lastpass[1], self._lastpass[2]))
+                self.update_pass_display(self._lastpass[0], self._lastpass[1], self._lastpass[2])
                 self._next_change_time = now + self.options.get("update_interval", 8)
         else:
             self._lastpass = None
@@ -279,13 +297,13 @@ class DisplayPassword(plugins.Plugin):
                     ui.update(force=True)
             else:
                 # if touched the password location, pop up a QR code
-                bbox = self.text_elem.font.getbbox(ui.get('display-password'))
+                bbox = self.bbox
                 p = touch_data['point']
                 tpos = self.text_elem.xy
                 rbox = (tpos[0] + bbox[0], tpos[1] + bbox[1],
                         tpos[0] + bbox[2], tpos[1] + bbox[3])
-                logging.debug("BBox is %s" % (repr(rbox)))
-                logging.debug("Touch at %s" % (repr(p)))
+                logging.info("BBox is %s" % (repr(rbox)))
+                logging.info("Touch at %s" % (repr(p)))
                 if (p[0] > tpos[0] + bbox[0] and
                     p[0] < tpos[0] + bbox[2] and
                     p[1] > tpos[1] + bbox[1] and
@@ -294,7 +312,8 @@ class DisplayPassword(plugins.Plugin):
                     if self._lastpass:
                         ssid, passwd, rssi = self._lastpass
                         self.qr_code = WifiQR(ssid, passwd)
-                        ui.add_element('dp-qrcode', self.qr_code)
+                        with ui._lock:
+                            ui.add_element('dp-qrcode', self.qr_code)
                         ui.update(force=True)
 
         except Exception as err:
