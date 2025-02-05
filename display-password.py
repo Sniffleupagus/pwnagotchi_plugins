@@ -64,10 +64,9 @@ class WifiQR(Widget):
 
 class DisplayPassword(plugins.Plugin):
     __author__ = '@nagy_craig, Sniffleupagus'
-    __version__ = '1.0.0'
+    __version__ = '1.1.0'
     __license__ = 'GPL3'
     __description__ = 'A plugin to display recently cracked passwords of nearby networks'
-
 
     def readPotfile(self, fname="/root/handshakes/wpa-sec.cracked.potfile"):
         if os.path.isfile(fname):
