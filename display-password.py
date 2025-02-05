@@ -106,7 +106,7 @@ class WifiQR(Widget):
 
 class DisplayPassword(plugins.Plugin):
     __author__ = '@nagy_craig, Sniffleupagus'
-    __version__ = '1.1.3'
+    __version__ = '1.1.4'
     __license__ = 'GPL3'
     __description__ = 'A plugin to display recently cracked passwords of nearby networks'
 
@@ -333,7 +333,8 @@ class DisplayPassword(plugins.Plugin):
                     p[1] < tpos[3]):
                     
                     logging.debug("Close QR code")
-                    ui.remove_element('dp-qrcode')
+                    with ui._lock:
+                        ui.remove_element('dp-qrcode')
                     del self.qr_code
                     self.qr_code = None
                     ui.update(force=True)
@@ -356,7 +357,7 @@ class DisplayPassword(plugins.Plugin):
                         self.qr_code = WifiQR(ssid, passwd)
                         with ui._lock:
                             ui.add_element('dp-qrcode', self.qr_code)
-                            ui.update(force=True)
+                        ui.update(force=True)
 
         except Exception as err:
             logging.exception("%s" % repr(err))
