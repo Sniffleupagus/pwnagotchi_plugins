@@ -136,8 +136,9 @@ class DisplayPassword(plugins.Plugin):
                 ssid, passwd, rssi = self._lastpass
                 border = self.options.get('border', 3)
                 box_size = self.options.get('box_size', 3)
-                self.qr_code = WifiQR(ssid, passwd, box_size=box_size, border=border)
-                self._ui.add_element('dp-qrcode', self.qr_code)
+                with self._ui._lock:
+                    self.qr_code = WifiQR(ssid, passwd, box_size=box_size, border=border)
+                    self._ui.add_element('dp-qrcode', self.qr_code)
                 self._ui.update(force=True)
             except Exception as e:
                 logging.exception(e)
@@ -156,11 +157,12 @@ class DisplayPassword(plugins.Plugin):
     def on_ui_setup(self, ui):
         self._ui = ui
         try:
+          with ui._lock:
             pos = (self.options.get('pos_x', 0), self.options.get('pos_y', 91))
             self.text_elem = Text(color=BLACK, value='',
                                   position=pos,
                                   font=fonts.Small)
-            ui.add_element('display-password', self.text_elem)              
+            ui.add_element('display-password', self.text_elem)
         except Exception as e:
             logging.exception(e)
 
