@@ -106,7 +106,7 @@ class WifiQR(Widget):
 
 class DisplayPassword(plugins.Plugin):
     __author__ = '@nagy_craig, Sniffleupagus'
-    __version__ = '1.1.2'
+    __version__ = '1.1.3'
     __license__ = 'GPL3'
     __description__ = 'A plugin to display recently cracked passwords of nearby networks'
 
@@ -369,7 +369,7 @@ class DisplayPassword(plugins.Plugin):
             if "/toggle" in path:
                 self.toggleQR("web")
                 return "OK"
-            return "<html><body>Woohoo! %s: %s<p>Request /plugins/display-password/toggle to view QR code on screen</body></html>" % (path, query)
+            return "<html><body>Woohoo! %s: %s<p>Request <a href=\"/plugins/display-password/toggle\">/plugins/display-password/toggle</a> to view or dismiss the QR code on screen</body></html>" % (path, query)
         except Exception as e:
             logging.exception(e)
             return "<html><body>Error! %s</body></html>" % (e)
