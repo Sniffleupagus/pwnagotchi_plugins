@@ -11,6 +11,7 @@
 #
 ###############################################################
 from pwnagotchi.ui.components import Text, Widget
+from PIL import Image, ImageDraw, ImageFont
 from pwnagotchi.ui.view import BLACK
 import RPi.GPIO as GPIO
 import pwnagotchi.ui.fonts as fonts
@@ -21,7 +22,15 @@ import os
 import operator
 import random
 import time
-import qrcode
+try:
+    import qrcode
+except Exception as e:
+    logging.info("Install python qrcode library to display QR codes: %s" % e)
+    logging.info("To install in pwnagotchi venv:")
+    logging.info("\t$ sudo bash")
+    logging.info("\t# source ~pi/.pwn/bin/activate")
+    logging.info("\t# pip3 install qrcode")
+    qrcode = None
 
 class WifiQR(Widget):
     def __init__(self, ssid, passwd, color = 0, version=6, box_size=3, border=4):
@@ -40,27 +49,58 @@ class WifiQR(Widget):
             logging.debug("QR display")
             if not self.img:
                 max_size = min([canvas.width, canvas.height])
-                best_version = int((max_size/self.box_size - 17 - 2 * self.border) / 4)
-                logging.info("Computed size: %d -> %d" % (max_size, best_version))
-                self.version = best_version
-                self.qr = qrcode.QRCode(version=self.version,
-                                        error_correction=qrcode.constants.ERROR_CORRECT_L,
-                                        box_size=self.box_size, border=self.border
-                                        )
-                wifi_data = f"WIFI:T:WPA;S:{self.ssid};P:{self.passwd};;"
-                self.qr.add_data(wifi_data)
-                self.img = self.qr.make_image(fit=True, fill_color="black", back_color="white").convert(canvas.mode)
-                logging.debug("QR Created: %s" % repr(self.img))
+                if qrcode:
+                    best_version = int((max_size/self.box_size - 17 - 2 * self.border) / 4)
+                    logging.info("Computed size: %d -> %d" % (max_size, best_version))
+                    self.version = best_version
+                    self.qr = qrcode.QRCode(version=self.version,
+                                            error_correction=qrcode.constants.ERROR_CORRECT_L,
+                                            box_size=self.box_size, border=self.border
+                                            )
+                    wifi_data = f"WIFI:T:WPA;S:{self.ssid};P:{self.passwd};;"
+                    self.qr.add_data(wifi_data)
+                    self.img = self.qr.make_image(fit=True, fill_color="black", back_color="white").convert(canvas.mode)
+                    logging.debug("QR Created: %s" % repr(self.img))
 
-                self.xy = (int(canvas.width/2 - self.img.width/2),
-                           int(canvas.height/2 - self.img.height/2),
-                           int(canvas.width/2 - self.img.width/2 + self.img.width),
-                           int(canvas.height/2 - self.img.height/2 + self.img.height)
-                           )
+                    self.xy = (int(canvas.width/2 - self.img.width/2),
+                               int(canvas.height/2 - self.img.height/2),
+                               int(canvas.width/2 - self.img.width/2 + self.img.width),
+                               int(canvas.height/2 - self.img.height/2 + self.img.height)
+                               )
+                else:
+                    logging.info("No QRCode")
+                    w = canvas.width
+                    h = canvas.height
+                    img_center = (int(canvas.width/2), int(canvas.height/2))
+                    img = Image.new(canvas.mode, (canvas.width, canvas.height), (0,0,0))
+                    d = ImageDraw.Draw(img)
+                    d.fontmode = "1"
 
+                    f = ImageFont.truetype("DejaVuSans-Bold", int(h/8))
+                    f2 = ImageFont.truetype("DejaVuSerif-Bold", int(h/16))
+                    f3 = ImageFont.truetype("DejaVuSans", int(14))
+
+                    x = self.border*2
+                    y = self.border*2
+                    for head, body in [["SSID", self.ssid], ["PASSWORD", self.passwd]]:
+                        d.text((x,y), head, (192,192,192), font=f2)
+                        b = img.getbbox()
+                        y = b[3]#+self.box_size
+                        logging.info("%s at %s" % (head, b))
+                        d.text((x,y), body, (255,255,255), font=f)
+                        b = img.getbbox()
+                        y = b[3]+self.box_size
+                        logging.info("%s at %s" % (body, b))
+
+                    d.text((x,y+self.box_size), "Install qrcode lib to see QR codes:\n  $ sudo bash\n  # source ~pi/.pwn/bin/activate\n  # pip3 install qrcode", (255,255,255), font=f3)
+                    b = img.getbbox()
+                    d.rectangle((0, 0, b[2] + self.border*2, b[3] + self.border*2))
+                    self.img = img.crop(img.getbbox())
+                    self.xy = (int(canvas.width/2 - self.img.width/2),
+                               int(canvas.height/2 - self.img.height/2))
             canvas.paste(self.img, self.xy)
         except Exception as e:
-            logging.exception("Image failed: %s, %s" % (self.img.width, self.xy))
+            logging.exception("Image failed: %s, %s" % (self.img, self.xy))
 
 class DisplayPassword(plugins.Plugin):
     __author__ = '@nagy_craig, Sniffleupagus'
@@ -314,7 +354,7 @@ class DisplayPassword(plugins.Plugin):
                         self.qr_code = WifiQR(ssid, passwd)
                         with ui._lock:
                             ui.add_element('dp-qrcode', self.qr_code)
-                        ui.update(force=True)
+                            ui.update(force=True)
 
         except Exception as err:
             logging.exception("%s" % repr(err))
