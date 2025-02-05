@@ -105,10 +105,14 @@ class DisplayPassword(plugins.Plugin):
 
         self.gpio = self.options.get("gpio", None)
         if self.gpio:
-            GPIO.setmode(GPIO.BCM)
-            GPIO.setup(self.gpio, GPIO.IN, GPIO.PUD_UP)
-            GPIO.add_event_detect(self.gpio, GPIO.FALLING, callback=self.toggleQR,
-                                  bouncetime=800)
+            try:
+                GPIO.setmode(GPIO.BCM)
+                GPIO.setup(self.gpio, GPIO.IN, GPIO.PUD_UP)
+                GPIO.add_event_detect(self.gpio, GPIO.FALLING, callback=self.toggleQR,
+                                      bouncetime=800)
+            except Exception as e:
+                logging.error("GPIO: %s" % e)
+                self.gpio = None
 
     def toggleQR(self, channel):
       try:
@@ -131,7 +135,9 @@ class DisplayPassword(plugins.Plugin):
         elif self._lastpass:
             try:
                 ssid, passwd, rssi = self._lastpass
-                self.qr_code = WifiQR(ssid, passwd)
+                border = self.options.get('border', 3)
+                box_size = self.options.get('box_size', 3)
+                self.qr_code = WifiQR(ssid, passwd, box_size=box_size, border=border)
                 self._ui.add_element('dp-qrcode', self.qr_code)
                 self._ui.update(force=True)
             except Exception as e:
@@ -178,9 +184,9 @@ class DisplayPassword(plugins.Plugin):
         if self.options.get("show_whitelist", False):
             self.check_aps(access_points)
 
-    def on_wifi_update(self, agent, access_points):
-        if not self.options.get("show_whitelist", False):
-            self.check_aps(access_points)
+    #def on_wifi_update(self, agent, access_points):
+    #    if not self.options.get("show_whitelist", False):
+    #        self.check_aps(access_points)
 
     def check_aps(self, access_points):
       try:
