@@ -99,7 +99,9 @@ class WifiQR(Widget):
                     d.rectangle((0, 0, b[2] + self.border*2, b[3] + self.border*2))
                     self.img = img.crop(img.getbbox())
                     self.xy = (int(canvas.width/2 - self.img.width/2),
-                               int(canvas.height/2 - self.img.height/2))
+                               int(canvas.height/2 - self.img.height/2),
+                               int(canvas.width/2 + self.img.width/2),
+                               int(canvas.height/2 + self.img.height/2))
             canvas.paste(self.img, self.xy)
         except Exception as e:
             logging.exception("Image failed: %s, %s" % (self.img, self.xy))
