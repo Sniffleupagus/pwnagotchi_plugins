@@ -24,33 +24,43 @@ import time
 import qrcode
 
 class WifiQR(Widget):
-    def __init__(self, ssid, passwd, color = 0):
+    def __init__(self, ssid, passwd, color = 0, version=6, box_size=3, border=3):
         super().__init__(color)
         self.ssid = ssid
         self.passwd = passwd
         self.color = color
+        self.box_size = box_size
+        self.border = border
         self.xy = (0,0,1,1)
-
-        self.qr = qrcode.QRCode(version=5,
-                                error_correction=qrcode.constants.ERROR_CORRECT_L,
-                                box_size=3, border=3
-                                )
-        wifi_data = f"WIFI:T:WPA;S:{ssid};P:{passwd};;"
-        self.qr.add_data(wifi_data)
-        #self.img = qrcode.make(wifi_data)
-        self.img = self.qr.make_image(fit=True, fill_color="black", back_color="white")
-        logging.debug("QR Created: %s" % repr(self.img))
-        #self.img.save("/tmp/qrcode.png")
+        self.version = version
+        self.img = None
 
     def draw(self, canvas, drawer):
-        logging.debug("QR display")
-        self.img = self.img.convert(canvas.mode)
-        self.xy = (int(canvas.width/2 - self.img.width/2),
-              int(canvas.height/2 - self.img.height/2),
-              int(canvas.width/2 - self.img.width/2 + self.img.width),
-              int(canvas.height/2 - self.img.height/2 + self.img.height)
-              )
-        canvas.paste(self.img, self.xy)
+        try:
+            logging.debug("QR display")
+            if not self.img:
+                max_size = min([canvas.width, canvas.height])
+                best_version = int((max_size/self.box_size - 17 - 2 * self.border) / 4)
+                logging.info("Computed size: %d -> %d" % (max_size, best_version))
+                self.version = best_version
+                self.qr = qrcode.QRCode(version=self.version,
+                                        error_correction=qrcode.constants.ERROR_CORRECT_L,
+                                        box_size=self.box_size, border=self.border
+                                        )
+                wifi_data = f"WIFI:T:WPA;S:{self.ssid};P:{self.passwd};;"
+                self.qr.add_data(wifi_data)
+                self.img = self.qr.make_image(fit=True, fill_color="black", back_color="white").convert(canvas.mode)
+                logging.debug("QR Created: %s" % repr(self.img))
+
+                self.xy = (int(canvas.width/2 - self.img.width/2),
+                           int(canvas.height/2 - self.img.height/2),
+                           int(canvas.width/2 - self.img.width/2 + self.img.width),
+                           int(canvas.height/2 - self.img.height/2 + self.img.height)
+                           )
+
+            canvas.paste(self.img, self.xy)
+        except Exception as e:
+            logging.exception("Image failed: %s, %s" % (self.img.width, self.xy))
 
 class DisplayPassword(plugins.Plugin):
     __author__ = '@nagy_craig, Sniffleupagus'
