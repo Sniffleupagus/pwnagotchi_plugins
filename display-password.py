@@ -93,7 +93,7 @@ class WifiQR(Widget):
                     y = b[1]+self.border*self.box_size
                     d.text((x,y), "SSID", (192,192,192), font=f2)
                     b2 = img.getbbox()
-                    d.text((b2[2],y), f" ({self.rssi} db)", (255,0,255), font=f2)
+                    d.text((b2[2],y), f" ({self.rssi} db)", (255,255,255), font=f2)
                     y = b2[3]
                     d.text((x,y), self.ssid, (255,255,255), font=f)
                     b2 = img.getbbox()
