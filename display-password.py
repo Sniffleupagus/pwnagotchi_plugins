@@ -36,11 +36,12 @@ except Exception as e:
     qrcode = None
 
 class WifiQR(Widget):
-    def __init__(self, ssid, passwd, mac, color = 0, version=6, box_size=3, border=4):
+    def __init__(self, ssid, passwd, mac, rssi, color = 0, version=6, box_size=3, border=4):
         super().__init__(color)
         self.ssid = ssid
         self.passwd = passwd
         self.mac = mac
+        self.rssi = rssi
         self.color = color
         self.box_size = box_size
         self.border = border
@@ -59,9 +60,11 @@ class WifiQR(Widget):
                 d.fontmode = "1"
                 img_center = (int(canvas.width/2), int(canvas.height/2))
 
-                max_size = min([canvas.width, canvas.height])
+                max_size = min([canvas.width*0.8/2, canvas.height])
                 if qrcode:
-                    best_version = int((max_size/self.box_size - 17 - 2 * self.border) / 4)
+                    best_version = int((max_size/self.box_size - 17 - 2 * self.border) / self.box_size)
+                    if best_version < 1:
+                        best_version = 1
                     logging.info("Computed size: %d -> %d" % (max_size, best_version))
                     self.version = best_version
                     self.qr = qrcode.QRCode(version=self.version,
@@ -90,6 +93,7 @@ class WifiQR(Widget):
                     y = b[1]+self.border*self.box_size
                     d.text((x,y), "SSID", (192,192,192), font=f2)
                     b2 = img.getbbox()
+                    d.text((b2[2],y), f" ({self.rssi} db)", (255,0,255), font=f2)
                     y = b2[3]
                     d.text((x,y), self.ssid, (255,255,255), font=f)
                     b2 = img.getbbox()
@@ -149,7 +153,7 @@ class WifiQR(Widget):
 
 class DisplayPassword(plugins.Plugin):
     __author__ = '@nagy_craig, Sniffleupagus'
-    __version__ = '1.1.5'
+    __version__ = '1.1.6'
     __license__ = 'GPL3'
     __description__ = 'A plugin to display recently cracked passwords of nearby networks'
 
@@ -222,7 +226,7 @@ class DisplayPassword(plugins.Plugin):
                 border = self.options.get('border', 4)
                 box_size = self.options.get('box_size', 3)
                 with self._ui._lock:
-                    self.qr_code = WifiQR(ssid, passwd, mac, box_size=box_size, border=border)
+                    self.qr_code = WifiQR(ssid, passwd, mac, rssi, box_size=box_size, border=border)
                     self._ui.add_element('dp-qrcode', self.qr_code)
                 self._ui.update(force=True)
             except Exception as e:
@@ -400,7 +404,7 @@ class DisplayPassword(plugins.Plugin):
                     logging.info("Show QR code (%s)" % self._lastpass)
                     if self._lastpass:
                         ssid, passwd, rssi, mac = self._lastpass
-                        self.qr_code = WifiQR(ssid, passwd, mac)
+                        self.qr_code = WifiQR(ssid, passwd, mac, rssi)
                         with ui._lock:
                             ui.add_element('dp-qrcode', self.qr_code)
                         ui.update(force=True)
