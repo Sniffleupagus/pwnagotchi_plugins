@@ -22,6 +22,7 @@ import os
 import operator
 import random
 import time
+from datetime import datetime, date
 from urllib.parse import urlparse, unquote
 
 try:
@@ -35,10 +36,11 @@ except Exception as e:
     qrcode = None
 
 class WifiQR(Widget):
-    def __init__(self, ssid, passwd, color = 0, version=6, box_size=3, border=4):
+    def __init__(self, ssid, passwd, mac, color = 0, version=6, box_size=3, border=4):
         super().__init__(color)
         self.ssid = ssid
         self.passwd = passwd
+        self.mac = mac
         self.color = color
         self.box_size = box_size
         self.border = border
@@ -50,6 +52,13 @@ class WifiQR(Widget):
         try:
             logging.debug("QR display")
             if not self.img:
+                w = canvas.width
+                h = canvas.height
+                img = Image.new(canvas.mode, (canvas.width, canvas.height), color=(0,0,0))
+                d = ImageDraw.Draw(img)
+                d.fontmode = "1"
+                img_center = (int(canvas.width/2), int(canvas.height/2))
+
                 max_size = min([canvas.width, canvas.height])
                 if qrcode:
                     best_version = int((max_size/self.box_size - 17 - 2 * self.border) / 4)
@@ -60,9 +69,48 @@ class WifiQR(Widget):
                                             box_size=self.box_size, border=self.border
                                             )
                     wifi_data = f"WIFI:T:WPA;S:{self.ssid};P:{self.passwd};;"
+
+                    for hsdir in ("/root/handshakes", "/boot/handshakes", "/home/pi/handshakes"):
+                        fname = f"{hsdir}/{self.ssid}_{self.mac}.pcap"
+                        if os.path.isfile(fname):
+                            break
+                        else:
+                            fname = None
+
                     self.qr.add_data(wifi_data)
-                    self.img = self.qr.make_image(fit=True, fill_color="black", back_color="white").convert(canvas.mode)
-                    logging.debug("QR Created: %s" % repr(self.img))
+                    qimg = self.qr.make_image(fit=True, fill_color="black", back_color="white").convert(canvas.mode)
+                    logging.debug("QR Created: %s" % repr(img))
+                    b = qimg.getbbox()
+
+                    f = ImageFont.truetype("DejaVuSans-Bold", int((b[3]-b[1])/7))
+                    f2 = ImageFont.truetype("DejaVuSerif-Bold",int((b[3]-b[1])/11))
+                    f3 = ImageFont.truetype("DejaVuSans", int((b[3]-b[1])/10))
+
+                    x = b[2]+self.box_size
+                    y = b[1]+self.border*self.box_size
+                    d.text((x,y), "SSID", (192,192,192), font=f2)
+                    b2 = img.getbbox()
+                    y = b2[3]
+                    d.text((x,y), self.ssid, (255,255,255), font=f)
+                    b2 = img.getbbox()
+                    y = b2[3]+self.box_size
+                    d.text((x, y), "PASSWORD", (192,192,193), font=f2)
+                    b2 = img.getbbox()
+                    y = b2[3]
+                    d.text((x,y), self.passwd, (255,255,255), font=f)
+
+                    if fname:
+                        b2 = img.getbbox()
+                        y = b2[3]+self.box_size
+                        d.text((x, y), "DATE PWNED", (192,192,192), font=f2)
+                        b2 = img.getbbox()
+                        y = b2[3]
+                        d.text((x,y), datetime.fromtimestamp(os.path.getctime(fname)).strftime("%x %X"), (255,255,255), font=f3)
+
+                    b2 = img.getbbox()
+                    img.paste(qimg, (0,0))
+                    d.rectangle((0, 0, b2[2] + self.border*self.box_size, b[3]))
+                    self.img = img.crop(img.getbbox()).convert(canvas.mode)
 
                     self.xy = (int(canvas.width/2 - self.img.width/2),
                                int(canvas.height/2 - self.img.height/2),
@@ -71,19 +119,12 @@ class WifiQR(Widget):
                                )
                 else:
                     logging.info("No QRCode")
-                    w = canvas.width
-                    h = canvas.height
-                    img_center = (int(canvas.width/2), int(canvas.height/2))
-                    img = Image.new(canvas.mode, (canvas.width, canvas.height), (0,0,0))
-                    d = ImageDraw.Draw(img)
-                    d.fontmode = "1"
-
-                    f = ImageFont.truetype("DejaVuSans-Bold", int(h/8))
-                    f2 = ImageFont.truetype("DejaVuSerif-Bold", int(h/16))
-                    f3 = ImageFont.truetype("DejaVuSans", int(14))
-
                     x = self.border*2
                     y = self.border*2
+                    f = ImageFont.truetype("DejaVuSans-Bold", int(h/8))
+                    f2 = ImageFont.truetype("DejaVuSerif-Bold", int(h/12))
+                    f3 = ImageFont.truetype("DejaVuSans", int(14))
+
                     for head, body in [["SSID", self.ssid], ["PASSWORD", self.passwd]]:
                         d.text((x,y), head, (192,192,192), font=f2)
                         b = img.getbbox()
@@ -108,7 +149,7 @@ class WifiQR(Widget):
 
 class DisplayPassword(plugins.Plugin):
     __author__ = '@nagy_craig, Sniffleupagus'
-    __version__ = '1.1.4'
+    __version__ = '1.1.5'
     __license__ = 'GPL3'
     __description__ = 'A plugin to display recently cracked passwords of nearby networks'
 
@@ -177,11 +218,11 @@ class DisplayPassword(plugins.Plugin):
             self._ui.update(force=True)
         elif self._lastpass:
             try:
-                ssid, passwd, rssi = self._lastpass
+                ssid, passwd, rssi, mac = self._lastpass
                 border = self.options.get('border', 4)
                 box_size = self.options.get('box_size', 3)
                 with self._ui._lock:
-                    self.qr_code = WifiQR(ssid, passwd, box_size=box_size, border=border)
+                    self.qr_code = WifiQR(ssid, passwd, mac, box_size=box_size, border=border)
                     self._ui.add_element('dp-qrcode', self.qr_code)
                 self._ui.update(force=True)
             except Exception as e:
@@ -192,11 +233,14 @@ class DisplayPassword(plugins.Plugin):
     def on_ready(self, agent):
         self._agent = agent
 
-        # wipe out memory of APs to get notifications sooner
-        if self.options.get("debug", False):
-            agent.run('wifi.clear')
-
-        self.check_aps(agent._access_points)
+        try:
+            # wipe out memory of APs to get notifications sooner
+            if self.options.get("debug", False):
+                agent.run('wifi.clear')
+            logging.info("Checking %s APs" % len(agent._access_points))
+            self.check_aps(agent._access_points)
+        except Exception as e:
+            logging.exception(e)
 
     def on_ui_setup(self, ui):
         self._ui = ui
@@ -248,18 +292,18 @@ class DisplayPassword(plugins.Plugin):
                 (amac, smac, assid, apass) = self.cracked[mac].strip().split(':', 3)
                 if ssid == assid:
                     logging.debug("Found: %s %s ? %s" % (mac, ssid, self.cracked[mac]))
-                    self.found[mac] = [assid, apass, rssi]
+                    self.found[mac] = [assid, apass, rssi, amac]
             elif ssid in self.cracked:                
                 logging.debug("APssid: %s, %s" % (self.cracked[ssid].strip(), repr(ap)))
                 (amac, smac, assid, apass) = self.cracked[ssid].strip().split(':', 3)
                 logging.debug("Found: %s %s ? %s" % (mac, ssid, self.cracked[ssid]))
-                self.found[mac] = [assid, apass, rssi]
+                self.found[mac] = [assid, apass, rssi, amac]
             else:
                 logging.debug("AP: %s, %s not found" % (mac, ssid))
       except Exception as e:
           logging.exception(e)
 
-    def update_pass_display(self, ssid, pword, rssi):
+    def update_pass_display(self, ssid, pword, rssi, mac):
         if not self._ui:
             return
         if self.options.get('oneline', True):
@@ -289,14 +333,14 @@ class DisplayPassword(plugins.Plugin):
             if mac in self.cracked:
                 (amac, smac, assid, apass) = self.cracked[mac].strip().split(':', 3)
                 logging.info("Popped up: %s %s ? %s" % (mac, ssid, self.cracked[mac]))
-                self.found[amac] = [assid, apass, rssi]
-                self.update_pass_display(assid, apass, rssi)
+                self.found[amac] = [assid, apass, rssi, amac]
+                self.update_pass_display(assid, apass, rssi, amac)
                 self._lastpass = self.found[amac]
             elif ssid in self.cracked:
                 (amac, smac, assid, apass) = self.cracked[ssid].strip().split(':', 3)
                 logging.info("Popped up: %s %s ? %s" % (mac, ssid, self.cracked[ssid]))
-                self.found[amac] = [assid, apass, rssi]
-                self.update_pass_display(assid, apass, rssi)
+                self.found[amac] = [assid, apass, rssi, amac]
+                self.update_pass_display(assid, apass, rssi, amac)
                 self._lastpass = self.found[amac]
         except Exception as e:
             logging.exception(repr(e))
@@ -314,7 +358,7 @@ class DisplayPassword(plugins.Plugin):
                 else:
                     self._lastidx = (self._lastidx + 1) % len(self.found)
                     self._lastpass = self.found[list(self.found)[self._lastidx]]
-                self.update_pass_display(self._lastpass[0], self._lastpass[1], self._lastpass[2])
+                self.update_pass_display(self._lastpass[0], self._lastpass[1], self._lastpass[2], self._lastpass[3])
                 self._next_change_time = now + self.options.get("update_interval", 8)
         else:
             self._lastpass = None
@@ -355,8 +399,8 @@ class DisplayPassword(plugins.Plugin):
                     p[1] < tpos[1] + bbox[3]):
                     logging.info("Show QR code (%s)" % self._lastpass)
                     if self._lastpass:
-                        ssid, passwd, rssi = self._lastpass
-                        self.qr_code = WifiQR(ssid, passwd)
+                        ssid, passwd, rssi, mac = self._lastpass
+                        self.qr_code = WifiQR(ssid, passwd, mac)
                         with ui._lock:
                             ui.add_element('dp-qrcode', self.qr_code)
                         ui.update(force=True)
