@@ -22,8 +22,18 @@ import os
 import operator
 import random
 import time
+import socket
 from datetime import datetime, date
 from urllib.parse import urlparse, unquote
+
+try:
+    import dpkt
+except Exception as e:
+    logging.info("To install dpkt in pwnagotchi venv:")
+    logging.info("\t$ sudo bash")
+    logging.info("\t# source ~pi/.pwn/bin/activate")
+    logging.info("\t# pip3 install dpkt")
+    dpkt = None
 
 try:
     import qrcode
@@ -104,12 +114,26 @@ class WifiQR(Widget):
                     d.text((x,y), self.passwd, (255,255,255), font=f)
 
                     if fname:
+                        ts = os.path.getctime(fname)
                         b2 = img.getbbox()
                         y = b2[3]+self.box_size
                         d.text((x, y), "DATE PWNED", (192,192,192), font=f2)
                         b2 = img.getbbox()
                         y = b2[3]
-                        d.text((x,y), datetime.fromtimestamp(os.path.getctime(fname)).strftime("%x %X"), (255,255,255), font=f3)
+
+                        try:
+                            if dpkt:
+                                with open(fname, 'rb') as pc:
+                                    pcap = dpkt.pcap.Reader(pc)
+                                    for pts, buf in pcap:
+                                        logging.info(datetime.fromtimestamp(pts).strftime(" %x %X"))
+                                        ts = pts
+                                        break
+                        except Exception as e:
+                            logging.info("could not process pcap: %s" % e)
+                            ts = os.path.getctime(fname)
+
+                        d.text((x,y), datetime.fromtimestamp(ts).strftime(" %x %X"), (255,255,255), font=f3)
 
                     b2 = img.getbbox()
                     img.paste(qimg, (0,0))
