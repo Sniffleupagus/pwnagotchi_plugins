@@ -177,7 +177,7 @@ class WifiQR(Widget):
 
 class DisplayPassword(plugins.Plugin):
     __author__ = '@nagy_craig, Sniffleupagus'
-    __version__ = '1.1.6'
+    __version__ = '1.1.7'
     __license__ = 'GPL3'
     __description__ = 'A plugin to display recently cracked passwords of nearby networks'
 
