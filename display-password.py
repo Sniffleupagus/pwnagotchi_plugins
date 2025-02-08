@@ -25,11 +25,12 @@ import time
 import socket
 from datetime import datetime, date
 from urllib.parse import urlparse, unquote
+from dateutil.parser import isoparse
 
 try:
     import dpkt
 except Exception as e:
-    logging.info("To install dpkt in pwnagotchi venv:")
+    logging.info("Install dpkt to extract timestamps from pcaps::")
     logging.info("\t$ sudo bash")
     logging.info("\t# source ~pi/.pwn/bin/activate")
     logging.info("\t# pip3 install dpkt")
@@ -46,18 +47,46 @@ except Exception as e:
     qrcode = None
 
 class WifiQR(Widget):
-    def __init__(self, ssid, passwd, mac, rssi, color = 0, version=6, box_size=3, border=4):
+    def __init__(self, ssid, passwd, mac, rssi, color = 0, version=6, box_size=3, border=4, demo=False):
         super().__init__(color)
-        self.ssid = ssid
-        self.passwd = passwd
-        self.mac = mac
-        self.rssi = rssi
         self.color = color
         self.box_size = box_size
         self.border = border
         self.xy = (0,0,1,1)
         self.version = version
         self.img = None
+
+        if demo:
+            self.wifi_data = "https://www.youtube.com/watch?v=xvFZjo5PgG0"
+            self.ssid = "Wu-Tang LAN"
+            self.passwd = "NutN2FWit"
+            self.rssi = 69
+            self.ts = 752847600
+        else:
+            self.ssid = ssid
+            self.passwd = passwd
+            self.mac = mac
+            self.rssi = rssi
+            self.wifi_data = f"WIFI:T:WPA;S:{ssid};P:{passwd};;"
+
+            for hsdir in ("/root/handshakes", "/boot/handshakes", "/home/pi/handshakes"):
+                fname = f"{hsdir}/{self.ssid}_{self.mac}.pcap"
+                if os.path.isfile(fname):
+                    self.ts = os.path.getctime(fname)
+                    try:
+                        if dpkt:
+                            with open(fname, 'rb') as pc:
+                                pcap = dpkt.pcap.Reader(pc)
+                                for pts, buf in pcap:
+                                    logging.info(datetime.fromtimestamp(pts).strftime(" %x %X"))
+                                    self.ts = pts
+                                    break
+                    except Exception as e:
+                        logging.info("could not process pcap: %s" % e)
+                        self.ts = os.path.getctime(fname)
+                        break
+                else:
+                    fname = None
 
     def draw(self, canvas, drawer):
         try:
@@ -81,16 +110,8 @@ class WifiQR(Widget):
                                             error_correction=qrcode.constants.ERROR_CORRECT_L,
                                             box_size=self.box_size, border=self.border
                                             )
-                    wifi_data = f"WIFI:T:WPA;S:{self.ssid};P:{self.passwd};;"
 
-                    for hsdir in ("/root/handshakes", "/boot/handshakes", "/home/pi/handshakes"):
-                        fname = f"{hsdir}/{self.ssid}_{self.mac}.pcap"
-                        if os.path.isfile(fname):
-                            break
-                        else:
-                            fname = None
-
-                    self.qr.add_data(wifi_data)
+                    self.qr.add_data(self.wifi_data)
                     qimg = self.qr.make_image(fit=True, fill_color="black", back_color="white").convert(canvas.mode)
                     logging.debug("QR Created: %s" % repr(img))
                     b = qimg.getbbox()
@@ -113,27 +134,14 @@ class WifiQR(Widget):
                     y = b2[3]
                     d.text((x,y), self.passwd, (255,255,255), font=f)
 
-                    if fname:
-                        ts = os.path.getctime(fname)
+                    if self.ts:
                         b2 = img.getbbox()
                         y = b2[3]+self.box_size
                         d.text((x, y), "DATE PWNED", (192,192,192), font=f2)
                         b2 = img.getbbox()
                         y = b2[3]
 
-                        try:
-                            if dpkt:
-                                with open(fname, 'rb') as pc:
-                                    pcap = dpkt.pcap.Reader(pc)
-                                    for pts, buf in pcap:
-                                        logging.info(datetime.fromtimestamp(pts).strftime(" %x %X"))
-                                        ts = pts
-                                        break
-                        except Exception as e:
-                            logging.info("could not process pcap: %s" % e)
-                            ts = os.path.getctime(fname)
-
-                        d.text((x,y), datetime.fromtimestamp(ts).strftime(" %x %X"), (255,255,255), font=f3)
+                        d.text((x,y), datetime.fromtimestamp(self.ts).strftime(" %x %X"), (255,255,255), font=f3)
 
                     b2 = img.getbbox()
                     img.paste(qimg, (0,0))
@@ -177,7 +185,7 @@ class WifiQR(Widget):
 
 class DisplayPassword(plugins.Plugin):
     __author__ = '@nagy_craig, Sniffleupagus'
-    __version__ = '1.1.7'
+    __version__ = '1.1.8'
     __license__ = 'GPL3'
     __description__ = 'A plugin to display recently cracked passwords of nearby networks'
 
@@ -250,7 +258,7 @@ class DisplayPassword(plugins.Plugin):
                 border = self.options.get('border', 4)
                 box_size = self.options.get('box_size', 3)
                 with self._ui._lock:
-                    self.qr_code = WifiQR(ssid, passwd, mac, rssi, box_size=box_size, border=border)
+                    self.qr_code = WifiQR(ssid, passwd, mac, rssi, box_size=box_size, border=border, demo=self.options.get('demo', False))
                     self._ui.add_element('dp-qrcode', self.qr_code)
                 self._ui.update(force=True)
             except Exception as e:
@@ -309,7 +317,10 @@ class DisplayPassword(plugins.Plugin):
       try:
         self.readPotfile()
         self.found = {}
-        sorted_aps = sorted(access_points, key=operator.itemgetter( 'rssi'), reverse=True)
+        #sorted_aps = sorted(access_points, key=operator.itemgetter("last_seen",  'rssi'), reverse=True)
+        sorted_aps = sorted(access_points, key=lambda x:(int(isoparse(x['last_seen']).timestamp()),
+                                                         x['rssi']), reverse=True)
+        logging.info(sorted_aps)
 
         for ap in sorted_aps:
             mac = ap['mac'].replace(":", "").lower()
@@ -376,7 +387,11 @@ class DisplayPassword(plugins.Plugin):
     def on_ui_update(self, ui):
       try:
         now = time.time()
-        if len(self.found):
+        if self.options.get('demo', False):
+            self.update_pass_display("Wu-Tang LAN", "NutN2F*Wit", "69", "1:2:3:4:5:6")
+            ui.set('shakes', "69 (420) [Shaolin Free Wifi]")
+            self._lastpass = ["Wu-Tang LAN", "NutN2F*Wit", "69", "1:2:3:4:5:6"]
+        elif len(self.found):
             if now > self._next_change_time:
                 mode = self.options.get("mode", "cycle")
                 if mode == "rssi":
@@ -428,7 +443,7 @@ class DisplayPassword(plugins.Plugin):
                     logging.info("Show QR code (%s)" % self._lastpass)
                     if self._lastpass:
                         ssid, passwd, rssi, mac = self._lastpass
-                        self.qr_code = WifiQR(ssid, passwd, mac, rssi)
+                        self.qr_code = WifiQR(ssid, passwd, mac, rssi, demo=self.options.get('demo', False))
                         with ui._lock:
                             ui.add_element('dp-qrcode', self.qr_code)
                         ui.update(force=True)
@@ -444,7 +459,10 @@ class DisplayPassword(plugins.Plugin):
             if "/toggle" in path:
                 self.toggleQR("web")
                 return "OK"
-            return "<html><body>Woohoo! %s: %s<p>Request <a href=\"/plugins/display-password/toggle\">/plugins/display-password/toggle</a> to view or dismiss the QR code on screen</body></html>" % (path, query)
+            elif "/demo" in path:
+                self.options['demo'] = not self.options.get('demo', False)
+                return "OK - Demo %s" % self.options['demo']
+            return "<html><body>Woohoo! %s: %s<p>Request <a href=\"/plugins/display-password/toggle\">/plugins/display-password/toggle</a> to view or dismiss the QR code on screen<p><a href=\"/plugins/display-password/demo\">Toggle Demo:</a> %s</body></html>" % (path, query, self.options.get('demo'))
         except Exception as e:
             logging.exception(e)
             return "<html><body>Error! %s</body></html>" % (e)
