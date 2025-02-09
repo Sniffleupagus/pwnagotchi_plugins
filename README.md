@@ -58,7 +58,32 @@ bettercap, or removed from the config so they don't keep coming back.<p>
 Conflicts with bt-tether (because bettercap takes over the bluetooth device to scan). Enable and disable them as
 needed in the plugins tab of the webUI, without having to restart pwnagotchi.
 
-# enable_assoc.py and enable_deauth.py
+# display-password.py
+
+Using wpa-sec potfile, display cracked passwords of nearby WiFi networks, sorted in order of recent RSSI readings. Install python packages *qrcode* and *dpkt*. On Jayofelony pwnagotchis:<p>
+<code>sudo bash
+source ~pi/.pwn/bin/activate
+pip3 install qrcode dpkt
+</code><p>
+
+If the 'qrcode' python package is installed, display-password can show a QR code for easy joining of authorized networks.  The trigger can be from Touch_UI plugin compatible touchscreen, GPIO input, or webhook.  For touchscreens, touch the SSID/password on screen to show the QR code. Touch the QR code to dismiss it.  For GPIO, add the GPIO/BCM pin number in config.toml, like:<p>
+<code>main.plugins.display-password.gpio = 24</code><p>
+ Use the "BCM" numbering, not physical pin number.  For example, "GPIO 24" is the "Y" button on a Pimoroni Display Hat Mini, which is pin #18 on the GPIO header. The webhook can be clicked from the webui, or used in shell scripts, or the PiSugar command button. Use the following command, substituting your pwnagotchi webUI user and password (default changeme:changme):<p>
+ <code>curl -X GET http://USER:PASSWORD@localhost:8080/plugins/display-password/toggle</code><p>
+![IMG_2120](https://github.com/user-attachments/assets/7fd7dd8a-1eb1-47c8-9194-d71602bd7542)
+![IMG_2126](https://github.com/user-attachments/assets/cecd0f1f-6110-49ac-abbe-9890fba90109)
+
+Config options under main.plugins.display-password:<p>
+<code>
+show_whitelist = true|false - show or hide passwords of whitelisted APS
+mode = "cycle" (default, rotate through list), "rssi" (show highest signal strength), "random"
+oneline = true|false - show SSID on same line, or separate lines
+demo = true|false - enable demo mode with fake AP/password/QRcode
+gpio = BCM pin number of GPIO pin to toggle QR display
+border = size of border around QR code. Default is standard 4
+box_size = pixel size of QR code elements. Default is 3
+pos_x, pos_y = X and Y coordinates to display SSID and password
+# enable_assoc.py and enable_deauth.py</code><p>
 
 When loaded or unloaded, these plugins turn on or off personality associate or deauth. Change behavior on the fly, without
 restarting. Go to the plugins tab on webUI, and turn them on and off. No configuration. They change <code>agent._config['personality']['associate|deauth']</code> directly, so these plugins will affect "save and reboot" from web_cfg.<p>
