@@ -299,7 +299,7 @@ class DisplayPassword(plugins.Plugin):
                 ui.remove_element('display-password')
                 if self.qr_code:
                     ui.remove_element('dp-qrcode')
-
+            ui.update(force=True)
         except Exception as e:
             logging.info(e)
         if self.gpio:
