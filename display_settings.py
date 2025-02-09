@@ -2,7 +2,7 @@ import logging
 
 import pwnagotchi.plugins as plugins
 from pwnagotchi.ui.components import LabeledValue
-from pwnagotchi.ui.view import BLACK
+from pwnagotchi.ui.view import BLACK, WHITE
 import pwnagotchi.ui.fonts as fonts
 
 
@@ -14,6 +14,7 @@ class DisplaySettings(plugins.Plugin):
 
     def __init__(self):
         logging.debug("DisplaySettings plugin created")
+        self._ui = None
 
     # called when http://<host>:<port>/plugins/<plugin>/ is called
     # must return a html page
@@ -29,6 +30,8 @@ class DisplaySettings(plugins.Plugin):
     # called before the plugin is unloaded
     def on_unload(self, ui):
         logging.info("goodbye")
+        if hasattr(self._display, "set_backgroundcolor"):
+            self._ui.set_backgroundcolor(BLACK)
         pass
 
     # called hen there's internet connectivity
