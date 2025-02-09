@@ -55,6 +55,7 @@ class WifiQR(Widget):
         self.xy = (0,0,1,1)
         self.version = version
         self.img = None
+        self.ts = None
 
         if demo:
             self.wifi_data = "https://www.youtube.com/watch?v=xvFZjo5PgG0"
@@ -87,6 +88,7 @@ class WifiQR(Widget):
                         break
                 else:
                     fname = None
+                    self.ts = None
 
     def draw(self, canvas, drawer):
         try:
@@ -179,6 +181,7 @@ class WifiQR(Widget):
                                int(canvas.height/2 - self.img.height/2),
                                int(canvas.width/2 + self.img.width/2),
                                int(canvas.height/2 + self.img.height/2))
+            drawer.rectangle(self.xy, fill=None, outline='#808080')
             canvas.paste(self.img, self.xy)
         except Exception as e:
             logging.exception("Image failed: %s, %s" % (self.img, self.xy))
