@@ -252,10 +252,11 @@ class DisplayPassword(plugins.Plugin):
             return
         self._lastgpio = now
 
-        logging.info("TOGGLE!")
+        logging.debug("TOGGLE!")
         if self.qr_code:
-            logging.info("Close QR code")
-            self._ui.remove_element('dp-qrcode')
+            logging.debug("Close QR code")
+            with self._ui._lock:
+                self._ui.remove_element('dp-qrcode')
             del self.qr_code
             self.qr_code = None
             self._ui.update(force=True)
@@ -264,8 +265,8 @@ class DisplayPassword(plugins.Plugin):
                 ssid, passwd, rssi, mac = self._lastpass
                 border = self.options.get('border', 4)
                 box_size = self.options.get('box_size', 3)
+                self.qr_code = WifiQR(ssid, passwd, mac, rssi, box_size=box_size, border=border, demo=self.options.get('demo', False))
                 with self._ui._lock:
-                    self.qr_code = WifiQR(ssid, passwd, mac, rssi, box_size=box_size, border=border, demo=self.options.get('demo', False))
                     self._ui.add_element('dp-qrcode', self.qr_code)
                 self._ui.update(force=True)
             except Exception as e:
@@ -462,14 +463,13 @@ class DisplayPassword(plugins.Plugin):
         try:
             method = request.method
             path = request.path
-            query = unquote(request.query_string.decode('utf-8'))
             if "/toggle" in path:
                 self.toggleQR("web")
-                return "OK"
+                return "OK", 204
             elif "/demo" in path:
                 self.options['demo'] = not self.options.get('demo', False)
                 return "OK - Demo %s" % self.options['demo']
-            return "<html><body>Woohoo! %s: %s<p>Request <a href=\"/plugins/display-password/toggle\">/plugins/display-password/toggle</a> to view or dismiss the QR code on screen<p><a href=\"/plugins/display-password/demo\">Toggle Demo:</a> %s</body></html>" % (path, query, self.options.get('demo'))
+            return "<html><body>Woohoo! %s:<p>Request <a href=\"/plugins/display-password/toggle\">/plugins/display-password/toggle</a> to view or dismiss the QR code on screen<p><a href=\"/plugins/display-password/demo\">Toggle Demo:</a> %s</body></html>" % (path, self.options.get('demo'))
         except Exception as e:
             logging.exception(e)
             return "<html><body>Error! %s</body></html>" % (e)
