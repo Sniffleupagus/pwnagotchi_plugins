@@ -87,7 +87,7 @@ class WifiQR(Widget):
                     except Exception as e:
                         logging.info("could not process pcap: %s" % e)
                         self.ts = os.path.getctime(fname)
-                        break
+                    break
                 else:
                     fname = None
                     self.ts = None
