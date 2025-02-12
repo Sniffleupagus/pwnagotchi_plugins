@@ -56,6 +56,8 @@ class WifiQR(Widget):
         self.version = version
         self.img = None
         self.ts = None
+        self.image = None
+        self.value = None
 
         if demo:
             self.wifi_data = "https://www.youtube.com/watch?v=xvFZjo5PgG0"
@@ -182,6 +184,8 @@ class WifiQR(Widget):
                                int(canvas.width/2 + self.img.width/2),
                                int(canvas.height/2 + self.img.height/2))
             drawer.rectangle(self.xy, fill=None, outline='#808080')
+            self.value = self.img
+            self.image = self.img
             canvas.paste(self.img, self.xy)
         except Exception as e:
             logging.exception("Image failed: %s, %s" % (self.img, self.xy))
@@ -312,9 +316,9 @@ class DisplayPassword(plugins.Plugin):
         if self.options.get("show_whitelist", False):
             self.check_aps(access_points)
 
-    #def on_wifi_update(self, agent, access_points):
-    #    if not self.options.get("show_whitelist", False):
-    #        self.check_aps(access_points)
+    def on_wifi_update(self, agent, access_points):
+        if not self.options.get("show_whitelist", False):
+            self.check_aps(access_points)
 
     def check_aps(self, access_points):
       try:
