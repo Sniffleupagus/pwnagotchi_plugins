@@ -60,7 +60,7 @@ class MorseCode(plugins.Plugin):
     def _blink(self, msg):
         if len(msg) > 0:
             pattern = self._convert_code(msg)
-            self.logger.info("[MORSE] '%s' -> '%s'" % (msg, pattern))
+            self.logger.debug("[MORSE] '%s' -> '%s'" % (msg, pattern))
 
             # Attention signal
             for _ in range(3):
@@ -168,7 +168,7 @@ class MorseCode(plugins.Plugin):
         try:
             self._is_busy = False
 
-            self.logger.info("[Morse] loaded %s" % repr(self.options))
+            self.logger.debug("[Morse] loaded %s" % repr(self.options))
 
             for k,v in {'led': "/sys/class/leds/ACT/brightness",
                         'delay' : 200,
@@ -312,7 +312,7 @@ class MorseCode(plugins.Plugin):
 
     # called when the agent is deauthenticating a client station from an AP
     def on_deauthentication(self, agent, ap, cl):
-        logging.info(repr(cl))
+        logging.debug(repr(cl))
         if 'hostname' in cl and not cl['hostname'] == '' and not cl['hostname'] == '<hidden>':
             self._queue_message("KICK %s" % cl['hostname'])
         else:
