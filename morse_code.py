@@ -25,7 +25,7 @@ import pwnagotchi.ui.fonts as fonts
 
 class MorseCode(plugins.Plugin):
     __author__ = 'sniffleupagus'
-    __version__ = '1.0.0'
+    __version__ = '1.0.1'
     __license__ = 'GPL3'
     __description__ = 'An example plugin for pwnagotchi that implements all the available callbacks.'
 
