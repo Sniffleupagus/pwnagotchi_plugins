@@ -38,13 +38,13 @@ class auto_tune(plugins.Plugin):
 
         # count all actions per channel, to get a full channel list
         if channel not in self._chistos['_all_actions']:
-            self._chistos['_all_actions'][channel] = 1
+            self._chistos['_all_actions'][channel] = count
         else:
-            self._chistos['_all_actions'][channel] += 1
+            self._chistos['_all_actions'][channel] += count
 
         # track total on channel -1
         self._chistos[stat][-1] += count
-        self._chistos['_all_actions'][-1] += 1
+        self._chistos['_all_actions'][-1] += count
 
     def showChistos(self, stats = None, sort_key='_all_actions'): # stats is list of specific to show, else all
         ret = ""
@@ -214,8 +214,8 @@ class auto_tune(plugins.Plugin):
             ret += "<h2>Interactions per endpoint</h2>"
             ret += "<p><b>Encounters</b> is how many different times this AP has been seen, then not seen, then seen again. Interactions should be the sum of assoc and deauth attacks. All are per session stats. <b>Age</b> is seconds since AP was last seen by the plugin.</p>"
             ret += "<table border=1 spacing=4 cellspacing=4 cellpadding=4>"
-            ret += "<tr><th>Hostname</th><th>MAC</th><th>Channel</th><th>Age</th><th>RSSI</th><th>Encounters</th><th>Associates</th><th>Deauths</th><th>Handshakes</th><th>Interactions</th></tr>"
-            for (id, ap) in sorted(self._known_aps.items(), key=lambda x:x[1]['AT_lastseen'], reverse=True):
+            ret += "<tr><th>Hostname</th><th>MAC</th><th>Channel</th><th>Age</th><th>last time</th><th>RSSI</th><th>Encounters</th><th>Associates</th><th>Deauths</th><th>Handshakes</th><th>Interactions</th></tr>"
+            for (id, ap) in sorted(self._known_aps.items(), key=lambda x:(int(x[1]['AT_lastseen']),x[1]['rssi']), reverse=True):
                 lmac = ap['mac'].lower()
                 if ap['hostname'] == "<hidden>" and not self.options['show_hidden']:
                     logging.debug("Skipping %s '%s'" % (ap['hostname'], lmac))
@@ -238,6 +238,7 @@ class auto_tune(plugins.Plugin):
                     ret += "<tr><td><i>%s</i></td>" % html.escape(ap['hostname'])   # italicise hosts not currently visible
                 ret += "<td>%s</td><td>%s</td>" % (ap['mac'], ap['channel'])
                 ret += "<td>%d</td>" % int(now - ap['AT_lastseen'])                 # time since last interaction
+                ret += "<td>%s</td>" % ap['AT_lastseen']                 # time since last interaction
                 ret += "<td>%s</td>" % ap['rssi']
                 for t in ['seen', 'assoc', 'deauth', 'handshake']:
                     tag = 'AT_' + t
@@ -414,6 +415,11 @@ class auto_tune(plugins.Plugin):
         try:
             active_channels = []
             self._histogram["loops"] = self._histogram["loops"] + 1
+
+            # mark all as not visible, then scan through
+            for id,ap in self._known_aps.items():
+                ap['AT_visible'] = False
+
             for ap in access_points:
                 self.markAPSeen(ap, 'wifi_update')
                 ch = ap['channel']
@@ -425,7 +431,7 @@ class auto_tune(plugins.Plugin):
                 self._histogram[ch] = 1 if ch not in self._histogram else self._histogram[ch]+1
 
             self._active_channels = active_channels
-            logging.info("Histo: %s" % repr(self._histogram))
+            logging.debug("Histo: %s" % repr(self._histogram))
         except Exception as e:
             logging.exception(e)
 
@@ -445,16 +451,16 @@ class auto_tune(plugins.Plugin):
             n = 3 if "extra_channels" not in self.options else self.options["extra_channels"]
             if len(self._unscanned_channels) == 0:
                 if "restrict_channels" in self.options:
-                    logging.info("Repopulating from restricted list")
+                    logging.debug("Repopulating from restricted list")
                     self._unscanned_channels = self.options["restrict_channels"].copy()
                 elif hasattr(agent, "_allowed_channels"):
-                    logging.info("Repopulating from allowed list: %s" % agent._allowed_channels)
+                    logging.debug("Repopulating from allowed list: %s" % agent._allowed_channels)
                     self._unscanned_channels = agent._allowed_channels.copy()
                 elif hasattr(agent, "_supported_channels"):
-                    logging.info("Repopulating from supported list")
+                    logging.debug("Repopulating from supported list")
                     self._unscanned_channels = agent._supported_channels.copy()
                 else:
-                    logging.info("Repopulating unscanned list")
+                    logging.debug("Repopulating unscanned list")
                     self._unscanned_channels = pwnagotchi.utils.iface_channels(agent._config['main']['iface'])
 
             for i in range(n):
@@ -488,7 +494,7 @@ class auto_tune(plugins.Plugin):
                 self.incrementChisto('Unique APs', channel)
                 self.incrementChisto('Current APs', channel)
 
-                logging.info("New AP%s: %s" % (contextlabel, apID))
+                logging.debug("New AP%s: %s" % (contextlabel, apID))
             else:
                 # seen before, merge info
                 for p in access_point:
@@ -503,7 +509,7 @@ class auto_tune(plugins.Plugin):
                 # increment context count in the AP data
                 self._known_aps[apID][tag] = 1 if tag not in self._known_aps[apID] else self._known_aps[apID][tag]+1
                 if not context:
-                    logging.info("Returning AP: %s" % (apID))
+                    logging.debug("Returning AP: %s" % (apID))
 
             self._known_aps[apID]['AT_lastseen'] = time.time()
             return True
@@ -569,6 +575,7 @@ class auto_tune(plugins.Plugin):
             else:
                 if self._known_aps[apID]['AT_visible'] == False:
                     self.incrementChisto('Missed rejoins', channel)
+                    self.incrementChisto('Current APs', channel, -1)
                     logging.warn("AP '%s' already gone", apID)
                 else:
                     self._known_aps[apID]['AT_visible'] = False
@@ -576,6 +583,13 @@ class auto_tune(plugins.Plugin):
 
         except Exception as e:
             logging.exception(repr(e))
+
+    def on_bcap_wifi_ap_updated(self, agent, event):
+        try:
+            ap = event['data']
+            logging.info("AP Updated: %s" % repr(event))
+        except Exception as e:
+            logging.exception("AP Updated: %s, %s" % (repr(event), repr(e)))
 
     def on_bcap_wifi_client_new(self, agent, event):
         try:
@@ -585,6 +599,7 @@ class auto_tune(plugins.Plugin):
             clmac = self.normalize(cl['mac'])
             clID = clmac + '-' + apmac
             channel = ap['channel']
+            #logging.info("Client: %s" % repr(cl))
         except Exception as e:
             logging.exception(repr(e))
 
