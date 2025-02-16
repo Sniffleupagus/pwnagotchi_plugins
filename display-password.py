@@ -81,11 +81,11 @@ class WifiQR(Widget):
                             with open(fname, 'rb') as pc:
                                 pcap = dpkt.pcap.Reader(pc)
                                 for pts, buf in pcap:
-                                    logging.info(datetime.fromtimestamp(pts).strftime(" %x %X"))
+                                    logging.debug(datetime.fromtimestamp(pts).strftime(" %x %X"))
                                     self.ts = pts
                                     break
                     except Exception as e:
-                        logging.info("could not process pcap: %s" % e)
+                        logging.exception("could not process pcap %s: %s" % (fname, e))
                         self.ts = os.path.getctime(fname)
                     break
                 else:
@@ -108,7 +108,7 @@ class WifiQR(Widget):
                     best_version = int((max_size/self.box_size - 17 - 2 * self.border) / self.box_size)
                     if best_version < 1:
                         best_version = 1
-                    logging.info("Computed size: %d -> %d" % (max_size, best_version))
+                    logging.debug("Computed size: %d -> %d" % (max_size, best_version))
                     self.version = best_version
                     self.qr = qrcode.QRCode(version=self.version,
                                             error_correction=qrcode.constants.ERROR_CORRECT_L,
@@ -158,7 +158,7 @@ class WifiQR(Widget):
                                int(canvas.height/2 - self.img.height/2 + self.img.height)
                                )
                 else:
-                    logging.info("No QRCode")
+                    logging.debug("No QRCode")
                     x = self.border*2
                     y = self.border*2
                     f = ImageFont.truetype("DejaVuSans-Bold", int(h/8))
@@ -169,11 +169,11 @@ class WifiQR(Widget):
                         d.text((x,y), head, (192,192,192), font=f2)
                         b = img.getbbox()
                         y = b[3]#+self.box_size
-                        logging.info("%s at %s" % (head, b))
+                        logging.debug("%s at %s" % (head, b))
                         d.text((x,y), body, (255,255,255), font=f)
                         b = img.getbbox()
                         y = b[3]+self.box_size
-                        logging.info("%s at %s" % (body, b))
+                        logging.debug("%s at %s" % (body, b))
 
                     d.text((x,y+self.box_size), "Install qrcode lib to see QR codes:\n  $ sudo bash\n  # source ~pi/.pwn/bin/activate\n  # pip3 install qrcode", (255,255,255), font=f3)
                     b = img.getbbox()
@@ -248,7 +248,7 @@ class DisplayPassword(plugins.Plugin):
 
         now = time.time()
         if now - self._lastgpio < 0.7:
-            logging.info("Debounce %s %s" % (now, self._lastgpio))
+            logging.debug("Debounce %s %s" % (now, self._lastgpio))
             return
         self._lastgpio = now
 
@@ -281,7 +281,7 @@ class DisplayPassword(plugins.Plugin):
             # wipe out memory of APs to get notifications sooner
             if self.options.get("debug", False):
                 agent.run('wifi.clear')
-            logging.info("Checking %s APs" % len(agent._access_points))
+            logging.debug("Checking %s APs" % len(agent._access_points))
             self.check_aps(agent._access_points)
         except Exception as e:
             logging.exception(e)
@@ -306,7 +306,7 @@ class DisplayPassword(plugins.Plugin):
                     ui.remove_element('dp-qrcode')
             ui.update(force=True)
         except Exception as e:
-            logging.info(e)
+            logging.error(e)
         if self.gpio:
             logging.info("Cleaning GPIO")
             GPIO.remove_event_detect(self.gpio)
@@ -328,7 +328,7 @@ class DisplayPassword(plugins.Plugin):
         #sorted_aps = sorted(access_points, key=operator.itemgetter("last_seen",  'rssi'), reverse=True)
         sorted_aps = sorted(access_points, key=lambda x:(int(isoparse(x['last_seen']).timestamp()),
                                                          x['rssi']), reverse=True)
-        logging.info(sorted_aps)
+        logging.debug("Sorted aps: %s" % (sorted_aps))
 
         for ap in sorted_aps:
             mac = ap['mac'].replace(":", "").lower()
@@ -379,13 +379,13 @@ class DisplayPassword(plugins.Plugin):
 
             if mac in self.cracked:
                 (amac, smac, assid, apass) = self.cracked[mac].strip().split(':', 3)
-                logging.info("Popped up: %s %s ? %s" % (mac, ssid, self.cracked[mac]))
+                logging.debug("Popped up: %s %s ? %s" % (mac, ssid, self.cracked[mac]))
                 self.found[amac] = [assid, apass, rssi, amac]
                 self.update_pass_display(assid, apass, rssi, amac)
                 self._lastpass = self.found[amac]
             elif ssid in self.cracked:
                 (amac, smac, assid, apass) = self.cracked[ssid].strip().split(':', 3)
-                logging.info("Popped up: %s %s ? %s" % (mac, ssid, self.cracked[ssid]))
+                logging.debug("Popped up: %s %s ? %s" % (mac, ssid, self.cracked[ssid]))
                 self.found[amac] = [assid, apass, rssi, amac]
                 self.update_pass_display(assid, apass, rssi, amac)
                 self._lastpass = self.found[amac]
@@ -442,13 +442,13 @@ class DisplayPassword(plugins.Plugin):
                 tpos = self.text_elem.xy
                 rbox = (tpos[0] + bbox[0], tpos[1] + bbox[1],
                         tpos[0] + bbox[2], tpos[1] + bbox[3])
-                logging.info("BBox is %s" % (repr(rbox)))
-                logging.info("Touch at %s" % (repr(p)))
+                logging.debug("BBox is %s" % (repr(rbox)))
+                logging.debug("Touch at %s" % (repr(p)))
                 if (p[0] > tpos[0] + bbox[0] and
                     p[0] < tpos[0] + bbox[2] and
                     p[1] > tpos[1] + bbox[1] and
                     p[1] < tpos[1] + bbox[3]):
-                    logging.info("Show QR code (%s)" % self._lastpass)
+                    logging.debug("Show QR code (%s)" % self._lastpass)
                     if self._lastpass:
                         ssid, passwd, rssi, mac = self._lastpass
                         self.qr_code = WifiQR(ssid, passwd, mac, rssi, demo=self.options.get('demo', False))
