@@ -195,12 +195,21 @@ class Tweak_View(plugins.Plugin):
                                         res += "<li>%s.%s == %s, %s" % (key[1], key[2], html.escape(val), html.escape(oldf))
                                 self._tweaks[k] = val
                                 changed = True
+                        elif "bgcolor" in key[2]:
+                            if val != "%s" % oldval:
+                                res += "<li>*%s.%s : new %s, old %s" % (key[1], key[2], html.escape(repr(val)), html.escape(repr(oldval)))
+                                # validate that it is actual color?
+                                if self._ui:
+                                    self._ui._state._state[key[1]].bgcolor = val
+                                self._tweaks[k] = val
+                                changed = True
                         elif "color" in key[2]:
                             if val != "%s" % oldval:
                                 res += "<li>*%s.%s : new %s, old %s" % (key[1], key[2], html.escape(repr(val)), html.escape(repr(oldval)))
                                 # validate that it is actual color?
                                 if self._ui:
                                     self._ui._state._state[key[1]].color = val
+                                    logging.info("Setting color to %s" % (val))
                                 self._tweaks[k] = val
                                 changed = True
                         elif "xyz" in key[2]:
@@ -469,8 +478,11 @@ class Tweak_View(plugins.Plugin):
                         elif key == "label_font":
                             if value in self.myFonts:
                                 ui._state._state[element].label_font = self.myFonts[value]
+                        elif key == "bgcolor":
+                            logging.debug("BG Color: %s = %s" % (element, value))
+                            ui._state._state[element].bgcolor = value
                         elif key == "color":
-                            logging.debug("Color: %s = %s" % (element, value))
+                            logging.info("Color: %s = %s" % (element, value))
                             ui._state._state[element].color = value
                         elif key == "label":
                             ui._state._state[element].label = value
