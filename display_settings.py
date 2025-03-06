@@ -222,7 +222,10 @@ class DisplaySettings(plugins.Plugin):
             logging.warn(repr(err))
         pass
 
-    # called when an epoch is over (where an epoch is a single loop of the main algorithm)
+    # revert to normal background color on_internet for MANU, on_epoch for AUTO
+    def on_internet_available(self, agent):
+        self.set_background(self._original_color)
+
     def on_epoch(self, agent, epoch, epoch_data):
         self.set_background(self._original_color)
 
