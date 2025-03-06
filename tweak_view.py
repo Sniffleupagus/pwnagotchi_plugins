@@ -24,7 +24,7 @@ from flask import render_template_string
 
 class Tweak_View(plugins.Plugin):
     __author__ = 'Sniffleupagus'
-    __version__ = '1.0.0'
+    __version__ = '1.1.1'
     __license__ = 'GPL3'
     __description__ = 'Edit the UI layout. Ugly interface, no guardrails. Be careful!!!'
 
@@ -265,6 +265,10 @@ class Tweak_View(plugins.Plugin):
     # IMPORTANT: If you use "POST"s, add a csrf-token (via csrf_token() and render_template_string)
     def on_webhook(self, path, request):
         try:
+            if not self._agent and self._ui:
+                self._agent = self._ui._agent
+                if self._agent:
+                    logging.info("MANU mode. Snagged agent from ui")
             if request.method == "GET":
                 if path == "/" or not path:
                     
@@ -278,7 +282,9 @@ class Tweak_View(plugins.Plugin):
                         ret += '<h2>Available View Elements</h2><pre><form method=post><input id="csrf_token" name="csrf_token" type="hidden" value="{{ csrf_token() }}">'
                         ret += "%s" % (self.dump_item("VSS", view._state._state ))
                         ret += '<input type=submit name=submit value="Update View"></form></pre><p>'
-                        ret += "</body></html>"
+                    else:
+                        ret += "<h2>No agent</h2>\n%s" % (repr(request.args))
+                    ret += "</body></html>"
                     return render_template_string(ret)
                 else:
                     abort(404)
@@ -346,8 +352,8 @@ class Tweak_View(plugins.Plugin):
                     ret += "</body></html>"
                 return render_template_string(ret)
             else:
-                ret = '<html><head><title>Tweak view. Woohoo!</title><meta name="csrf_token" content="{{ csrf_token() }}"></head>'
-                ret += "<body><h1>Tweak View</h1>"
+                ret = '<html><head><title>Tweak view!</title><meta name="csrf_token" content="{{ csrf_token() }}"></head>'
+                ret += "<body><h1>Tweak View does not work in MANU mode</h1>"
                 ret += '<img src="/ui?%s">' % int(time.time())
                 if path: ret += "<h2>Path</h2><code>%s</code><p>" % repr(path)
                 ret += "</body></html>"
@@ -367,6 +373,7 @@ class Tweak_View(plugins.Plugin):
 
     # called when everything is ready and the main loop is about to start
     def on_ready(self, agent):
+        logging.info("Tweakview ready")
         self._agent = agent
 
 
@@ -482,7 +489,7 @@ class Tweak_View(plugins.Plugin):
                             logging.debug("BG Color: %s = %s" % (element, value))
                             ui._state._state[element].bgcolor = value
                         elif key == "color":
-                            logging.info("Color: %s = %s" % (element, value))
+                            logging.debug("Color: %s = %s" % (element, value))
                             ui._state._state[element].color = value
                         elif key == "label":
                             ui._state._state[element].label = value
