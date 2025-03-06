@@ -15,7 +15,7 @@ class DisplaySettings(plugins.Plugin):
     def __init__(self):
         logging.debug("DisplaySettings plugin created")
         self._ui = None
-        self._origional_color = BLACK
+        self._original_color = BLACK
         self.change_elements = ['face']
 
     def set_background(self, color):
@@ -50,10 +50,10 @@ class DisplaySettings(plugins.Plugin):
     # called before the plugin is unloaded
     def on_unload(self, ui):
         try:
-            logging.info("goodbye")
             self.set_background(self._original_color)
         except Exception as e:
             logging.exception(e)
+        logging.info("goodbye")
 
     # called to setup the ui elements
     def on_ui_setup(self, ui):
