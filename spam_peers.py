@@ -30,7 +30,7 @@ import pwnagotchi.grid as grid
 
 class Spam_Peers(plugins.Plugin):
     __author__ = '@Sniffleupagus'
-    __version__ = '1.0.0'
+    __version__ = '1.0.1'
     __license__ = 'GPL3'
     __description__ = 'Automatically send message to a new peers'
 
@@ -44,10 +44,10 @@ class Spam_Peers(plugins.Plugin):
                 p = json.load(fp)
             try:
                 name=p['advertisement']['name']
-                logging.info("Known peer %s %s" % (name, Path(f).stem))
+                logging.debug("Known peer %s %s" % (name, Path(f).stem))
                 self.known_peers.append(Path(f).stem)
             except Exception as e:
-                logging.info("Unknown peer %s %s" % (Path(f).stem, repr(p)))
+                logging.warn("Unknown peer %s %s" % (Path(f).stem, repr(p)))
 
         logging.info("I know %d peers" % len(self.known_peers))
 
@@ -58,7 +58,6 @@ class Spam_Peers(plugins.Plugin):
         if "known_peers" in self.options:
             self.known_peers = self.options["known_peers"]
 
-        logging.info("spam_peers loaded.")
         logging.debug("Spamming peers with %d messages" % len(self.messages))
 
     # called when a new peer is detected
@@ -72,6 +71,6 @@ class Spam_Peers(plugins.Plugin):
                 logging.info("Sending pwnmail to %s" % (repr(peer_print)))
                 grid.send_message(peer_print, random.choice(self.messages))
             else:
-                logging.info("Not spamming %s. On the list already" % (repr(peer_print)))
+                logging.debug("Not spamming %s. On the list already" % (repr(peer_print)))
         except Exception as e:
-            logging.info("spam_peers error: %s" % repr(e))
+            logging.error("spam_peers error: %s" % repr(e))
