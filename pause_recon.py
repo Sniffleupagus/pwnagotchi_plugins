@@ -105,17 +105,18 @@ class pause_recon(plugins.Plugin):
     def hijack(self, agent):
         """override the necessary functions to make pwnagotchi stop pwning for a while"""
         try:
+
+            # this is the replacement function
             def hj_observe(self, aps, peers):
-                """ This is the replacement function.
-                    Epoch.observe() sets the blind_for and inactive_for, which trigger
+                """ Epoch.observe() sets the blind_for and inactive_for, which trigger
                     actions that should be avoided while recon is disabled
                     Override Epoch.observe() with hj_observe, which calls the original,
                     then sets those stats to be 0.  Also sets num_missed so is_stale()
                     will be true and attacks get skipped."""
                 logging.debug("HJ observe: %s, %s, %s" % (self, len(aps), len(peers)))
                 try:
-                    if hasattr(self, 'hj_funcs'):
-                        o_func = self.hj_funcs.get('observe', None)
+                    if hasattr(self, 'hj_funcs'):   # if this object has been hijacked
+                        o_func = self.hj_funcs.get('observe', None)  # get original function from dictionary
                         if o_func:
                             o_func(aps, peers)    # call real observe function, pwnagotchi.ai.epoch.observe()
                         # override some of the stats
@@ -137,11 +138,10 @@ class pause_recon(plugins.Plugin):
                         logging.error("ep has no orig_observe: %s" % (repr(self)))
                 except Exception as e:
                     logging.exception(e)
-                    
+
+            # and this is how it gets installed:
             ep = agent._epoch
             if ep:
-                # set num_missed to avoid attacks
-                ep.num_missed = ep.config['personality']['max_misses_for_recon'] + 1
 
                 # add a dictionary to the object, to keep track of original functions
                 # so they can be restored in on_unload
@@ -157,8 +157,12 @@ class pause_recon(plugins.Plugin):
                 # override the Epoch.observe function with hj_observe
                 ep.observe = hj_observe.__get__(ep, Epoch)
                 logging.info("Hijacked recon functions %s" % (ep.hj_funcs))
-                        
+
+            # finally disable attacks and switch off bettercap recon
             try:
+                # set num_missed to avoid attacks
+                ep.num_missed = ep.config['personality']['max_misses_for_recon'] + 1
+
                 # pause recon in bettercap
                 r = agent.run('wifi.recon off')
                 logging.info("Wifi recon off: %s" % (r))
@@ -174,23 +178,26 @@ class pause_recon(plugins.Plugin):
                 logging.info("No agent")
                 return
             ep = agent._epoch
-            ep.num_missed = 0   # set to 0, so attacks activate again
+            
             logging.info("Unjacking %s" % (ep))
             if hasattr(ep, 'hj_funcs'):
                 # restore the observe function
                 ep.observe = ep.hj_funcs['observe']
-                if ep.observe == ep.hj_funcs['observe']:
+                if ep.observe == ep.hj_funcs['observe']:    # verify that it was restored
                     logging.info("Restored Epoch.observe")
                     del ep.hj_funcs['observe']
                 else:
                     logging.error("Failed to restore observe function")
+
+                # leave no trace
                 del ep.hj_funcs
             else:
                 logging.error("\t\t\tNothing to unjack")
 
             try:
+                ep.num_missed = 0   # set to 0, so attacks activate again
+
                 # restart wifi.recon in bettercap
-                logging.info("Unpausing recon")
                 r = agent.run('wifi.recon on')
                 logging.info("Wifi recon on: %s" % (r))
             except Exception as e:
