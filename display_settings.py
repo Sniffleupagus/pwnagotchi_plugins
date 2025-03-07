@@ -30,8 +30,6 @@ class DisplaySettings(plugins.Plugin):
             for e in self.change_elements:
                 if e in self._ui._state._state and hasattr(self._ui._state._state[e], 'setBackground'):
                     self._ui._state._state[e].setBackground(color)
-                else:
-                    logging.info("%s does not have bgcolor" % e)
         except Exception as e:
             logging.exception(e)
 
