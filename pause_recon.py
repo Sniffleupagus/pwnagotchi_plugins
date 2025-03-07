@@ -1,7 +1,7 @@
 import logging
 
 import pwnagotchi.plugins as plugins
-from pwnagotchi.ui.components import LabeledValue
+from pwnagotchi.ui.components import LabeledValue, Text
 from pwnagotchi.ui.view import BLACK
 import pwnagotchi.ui.fonts as fonts
 from pwnagotchi.ai.epoch import Epoch
@@ -24,6 +24,7 @@ class pause_recon(plugins.Plugin):
         self.options = dict()
         self._ui_elements = {}
         self._orig_functions = {}
+        self._start_epoch = 0
       except Exception as e:
           logging.exception(e)
 
@@ -88,9 +89,9 @@ class pause_recon(plugins.Plugin):
         # add custom UI elements
         with ui._lock:
             try:
-                self.add_ui_element(ui, 'pause_stats', LabeledValue(color=BLACK, label='PI:', value='[loading]',
-                                                                    position=(0, 180), label_spacing=15,
-                                                                    label_font=fonts.Small, text_font=fonts.Medium))
+                self.add_ui_element(ui, 'pause_stats', Text(color=BLACK, value='Recon Paused for 0 epochs',
+                                                            position=(0, 60),
+                                                            font=fonts.Small))
             except Exception as e:
                 logging.exception(e)
 
@@ -99,6 +100,7 @@ class pause_recon(plugins.Plugin):
 
         if self._agent:
             self.hijack(self._agent)
+            self._start_epoch = self._agent._epoch.epoch
 
     def hijack(self, agent):
         try:
@@ -113,7 +115,8 @@ class pause_recon(plugins.Plugin):
                     if hasattr(self, 'hj_funcs'):
                         o_func = self.hj_funcs.get('observe', None)
                         if o_func:
-                            o_func(aps, peers)
+                            o_func(aps, peers)    # call real observe function, pwnagotchi.ai.epoch.observe()
+                        # override some of the stats
                         if self.blind_for > 0:
                             logging.warn("Resetting blind count from %d" % (self.blind_for))
                             self.blind_for = 0
@@ -126,9 +129,8 @@ class pause_recon(plugins.Plugin):
                         if self.bored_for > 0:
                             logging.warn("Resetting bored count from %d" % (self.bored_for))
                             self.bored_for = 0
-                        # set to be stale, so attacks get skipped
+                        # set high enough to be stale, so attacks get skipped
                         self.num_missed = self.config['personality']['max_misses_for_recon'] + 1
-
                     else:
                         logging.error("ep has no orig_observe: %s" % (repr(self)))
                 except Exception as e:
@@ -136,13 +138,20 @@ class pause_recon(plugins.Plugin):
                     
             ep = agent._epoch
             if ep:
+                # set num_missed to avoid attacks
                 ep.num_missed = ep.config['personality']['max_misses_for_recon'] + 1
+
+                # dictionary to keep track of function(s) overridden
                 if hasattr(ep, 'hj_funcs'):
                     logging.error("Already hijacked. wtf?")
                 else:
                     ep.hj_funcs = {}
+
+                # save the origional. Do not overwrite if one is already saved (since that's the OG original)
                 if not 'observe' in ep.hj_funcs:
                     ep.hj_funcs['observe'] = ep.observe
+
+                # override the Epoch.observe function with hj_observe
                 ep.observe = hj_observe.__get__(ep, Epoch)
                 logging.info("Hijacked recon functions %s" % (ep.hj_funcs))
                         
@@ -186,7 +195,7 @@ class pause_recon(plugins.Plugin):
     def on_ui_update(self, ui):
         # update those elements
         if ui._agent:
-            ui.set('pause_stats', "Epochs %s, blind %d" % (ui._agent._epoch.epoch, ui._agent._epoch.blind_for))
+            ui.set('pause_stats', "Recon paused for %s epochs" % (ui._agent._epoch.epoch - self._start_epoch))
 
     # called when an epoch is over (where an epoch is a single loop of the main algorithm)
     def on_epoch(self, agent, epoch, epoch_data):
