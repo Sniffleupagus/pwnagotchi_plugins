@@ -224,7 +224,7 @@ class gt1151_touchscreen:
                     if touch['s'] > 0:   # process once more as 0 for release
                         touch['s'] = 0
                         touches[t] = touch
-                        logging.info("### Release track %s, pos %s, %s" % (t,
+                        logging.debug("### Release track %s, pos %s, %s" % (t,
                                                                            touch['x'],
                                                                            touch['y']))
             self.touches = touches
@@ -447,12 +447,12 @@ class Touch_Screen(plugins.Plugin):
                                          
                         time.sleep(0.1)
 
-                    logging.info("          $$$         Loop exited")
+                    logging.info("        Touchscreen Loop exited")
                     gt.module_exit()
                 except Exception as e:
                     logging.exception("Goodix: %s" % e)
         except Exception as e:
-            logging.info("Handler: %s" % repr(e))
+            logging.exception("Handler: %s" % repr(e))
     
     # called when http://<host>:<port>/plugins/<plugin>/ is called
     # must return a html page
@@ -464,8 +464,6 @@ class Touch_Screen(plugins.Plugin):
 
     # called when the plugin is loaded
     def on_loaded(self):
-        #logging.info("loaded with options = " % self.options)
-
         # to test pimoroni displayhatmini buttons, uncomment below, or define in your config.toml
         ##if 'gpios' not in self.options:
         ##    self.options['gpios'] = {'ok': 6, 'back' : 5, 'next': 24, 'prev': 16}   # Pimoroni display hat mini
@@ -534,9 +532,14 @@ class Touch_Screen(plugins.Plugin):
     def pointInBox(self, point, box):
         try:
             logging.debug("is %s in %s" % (repr(point), repr(box)))
-            return (point[0] >= box[0] and point[0] <= box[2] and point[1] >= box[1] and point[1] <= box[3])
+            if len(box) == 4:
+                return (point[0] >= box[0] and point[0] <= box[2] and point[1] >= box[1] and point[1] <= box[3])
+            else:
+                logging.error("Unknown box size. return False")
+                return False
         except Exception as e:
-            logging.info(repr(e))
+            logging.exception("Point: %s, Box: %s, error: %s" % (point, box, repr(e)))
+            return False
 
     def collect_touch_elements(self):
         # - go through plugins, and build touch_elements cache and complete array
@@ -560,7 +563,7 @@ class Touch_Screen(plugins.Plugin):
         ui_elements = self._view._state._state
         touch_element = None
         touch_elements = list(filter(lambda x: hasattr(ui_elements[x], "state"), ui_elements.keys()))
-        logging.info("Touchable: %s" % repr(touch_elements))
+        logging.debug("Touchable: %s" % repr(touch_elements))
         try:
             if int(depth) > 0:
                 command = "touch_move" if self._beingTouched else "touch_press"
@@ -571,17 +574,19 @@ class Touch_Screen(plugins.Plugin):
             else:
                 command = None
 
-            for te in touch_elements:
-                logging.debug("Checking %s, %s" % (te, repr(ui_elements[te].xy)))
-                if self.pointInBox(tpoint, ui_elements[te].xy):
-                    logging.info("Touched element %s: %s @ %s" % (repr(te),
-                                                                depth,
-                                                                repr(tpoint)))
-                    touch_element = te
-                    break # stop at first match
+            if touch_elements:
+                touch_elements.reverse()
+                for te in touch_elements:
+                    logging.debug("Checking %s, %s" % (te, repr(ui_elements[te].xy)))
+                    if self.pointInBox(tpoint, ui_elements[te].xy):
+                        logging.debug("Touched element %s: %s @ %s" % (repr(te),
+                                                                      depth,
+                                                                      repr(tpoint)))
+                        touch_element = te
+                        break # stop at first match
 
         except Exception as e:
-            logging.warn(repr(e))
+            logging.exception(repr(e))
 
         if command:
             if touch_element:
@@ -597,10 +602,10 @@ class Touch_Screen(plugins.Plugin):
                     self._view._state._changes[touch_element] = True
 
                 if hasattr(ui_elements[touch_element], 'event_handler'):
-                    logging.info("UI_Element %s Command: %s, handler: %s, data: %s" % (touch_element, command, ui_elements[touch_element].event_handler, repr(touch_data)))
+                    logging.debug("UI_Element %s Command: %s, handler: %s, data: %s" % (touch_element, command, ui_elements[touch_element].event_handler, repr(touch_data)))
                     plugins.one(ui_elements[touch_element].event_handler, command, self, self._view, touch_element, touch_data)
                 else:
-                    logging.info("UI_Element %s Command: %s, handler: %s, data: %s" % (touch_element, command, ui_elements[touch_element], repr(touch_data)))
+                    logging.debug("UI_Element %s Command: %s, handler: %s, data: %s" % (touch_element, command, ui_elements[touch_element], repr(touch_data)))
                     plugins.on(command, self, self._view, touch_element, touch_data)
 
             else:
