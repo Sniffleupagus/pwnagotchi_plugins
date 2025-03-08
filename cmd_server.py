@@ -51,7 +51,7 @@ class Command_Server(plugins.Plugin):
             logging.exception(e)
             raise
         # listening loop
-        while getattr(t, "keep_going", True):
+        while self._keep_going:
             try:
                 readable, writable, errored = select.select(read_list, [], [], 0.5)
                 for s in readable:
@@ -158,6 +158,7 @@ class Command_Server(plugins.Plugin):
         self._ui = None
         self._keep_going = True
         self._worker = None
+        self._keep_going = True
 
     def on_loaded(self):
         pass
@@ -167,7 +168,7 @@ class Command_Server(plugins.Plugin):
             self._agent = agent;
             logging.debug("Creating worker thread. options = %s" % self.options)
             self._worker = threading.Thread(target=self.command_loop)
-            self._worker.keep_going = True
+            self._keep_going = True
             logging.debug("Worker = %s" % repr(self._worker))
             #self._worker.daemon = True
             self._worker.start()
@@ -178,11 +179,11 @@ class Command_Server(plugins.Plugin):
     def on_unload(self, ui):
         logging.debug("unloading")
 
-        self._worker.keep_going = False # signal the worker thread to end
-
-        logging.debug("Waiting for worker %s" % repr(getattr(self._worker, "keep_going", True))) 
-        self._worker.join()
-        logging.debug("worker finished")
+        self._keep_going = False # signal the worker thread to end
+        if self._worker:
+            logging.debug("Waiting for worker")
+            self._worker.join()
+            logging.debug("worker finished")
 
 
     # called to setup the ui elements
