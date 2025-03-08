@@ -58,6 +58,8 @@ class WifiQR(Widget):
         self.ts = None
         self.image = None
         self.value = None
+        self.state = True
+        self.event_handler = "display-password"
 
         if demo:
             self.wifi_data = "https://www.youtube.com/watch?v=xvFZjo5PgG0"
@@ -294,6 +296,8 @@ class DisplayPassword(plugins.Plugin):
             self.text_elem = Text(color=BLACK, value='',
                                   position=pos,
                                   font=fonts.Small)
+            self.text_elem.state = True   # make touchable
+            self.text_elem.event_handler = "display-password"
             ui.add_element('display-password', self.text_elem)
         except Exception as e:
             logging.exception(e)
