@@ -19,9 +19,11 @@ import pwnagotchi.plugins as plugins
 import pwnagotchi
 import logging
 import os
+import glob
 import operator
 import random
 import time
+import re
 import socket
 from datetime import datetime, date
 from urllib.parse import urlparse, unquote
@@ -194,26 +196,91 @@ class WifiQR(Widget):
 
 class DisplayPassword(plugins.Plugin):
     __author__ = '@nagy_craig, Sniffleupagus'
-    __version__ = '1.1.10'
+    __version__ = '1.2.1'
     __license__ = 'GPL3'
     __description__ = 'A plugin to display recently cracked passwords of nearby networks'
+
+    def is_valid_mac(mac_address):
+        mac_address_pattern = r"^([0-9A-Fa-f]{2}[:-]){5}([0-9A-Fa-f]{2})$"
+        return re.match(mac_address_pattern, mac_address) is not None
+
+    def is_pmkid(text):
+        pmkid_pattern = r"([0-9a-fA-F]{64})"
+        match = re.search(pmkid_pattern, text)
+        if match:
+            return match.group(1)
+        else:
+            return None
 
     def readPotfile(self, fname="/root/handshakes/wpa-sec.cracked.potfile"):
         if os.path.isfile(fname):
             st = os.stat(fname)
             mtime = st.st_mtime if st else 0
 
-            if mtime == self.potfile_mtime:
-                logging.debug("Potfile unchanged.")
+            if mtime == self.potfile_mtimes.get(fname, -1):
+                logging.debug("Potfile %s unchanged." % os.path.basename(fname))
             else:
-                logging.info("Reading potfile.")
-                self.potfile_mtime = mtime
+                if 'wpa-sec' in fname:
+                    svc = "WPA-SEC"
+                    layout = (':', 0,1,2,3)  # separator, mac, cl_mac, ssid, pass
+                elif 'cracked.pwncrack.potfile' in fname:
+                    logging.info("Reading pwncrack file")
+                    svc = "PWNCrack"
+                    layout = (':', 1,2,3,4)
+                elif 'remote_cracking.potfile' in fname:
+                    svc = "RemoteCracking"
+                    layout = (':', 1,2,3,4)
+                else:
+                    svc = os.path.basename(fname)
+                    layout = None
+                    logging.info("Unknown potfile format for %s. Going to guess" % fname)
+
+                logging.info("Reading potfile %s" % fname)
                 with open(fname) as f:
-                    self.cracked = {}
                     for line in f:
-                        (mac, othermac, ssid, info) = line.strip().split(':', 3)
-                        self.cracked[mac.lower()] = line
-                        self.cracked[ssid] = line
+                        line = line.strip()
+                        svc = "unknown"
+                        if layout:
+                            parts = line.split(layout[0], len(layout)-1)
+
+                            mac = parts[layout[1]]
+                            ssid= parts[layout[3]]
+                            crack_info={'mac': mac,
+                                        'client': parts[layout[2]],
+                                        'ssid': ssid,
+                                        'passwd': parts[layout[4]],
+                                        'service': svc}
+
+                            self.cracked[mac] = crack_info
+                            self.cracked[ssid] = crack_info
+                        else:
+                            # Guess layout.
+                            # first mac is AP. Second mac is Client
+                            # first string that looks like a pmkid is basically skipped
+                            # otherwise assume to SSID, then password
+
+                            parts = line.split(':')
+                            (pmkid, mac, cl_mac, ssid, pw) = (None, None, None, None, None)
+                            for p in range(parts):
+                                text = parts[p]
+                                if not mac and is_valid_mac(text):
+                                    mac = text
+                                elif not cl_mac and is_valid_mac(text):
+                                    cl_mac = text
+                                elif not pmkid and is_pmkid(text):
+                                    pmkid = text
+                                elif not ssid:
+                                    ssid = text
+                                else:
+                                    pw = text
+                            crack_info={'mac':mac,
+                                        'client':mac,
+                                        'ssid':ssid,
+                                        'passwd':pw,
+                                        'service':svc}
+                            self.cracked[mac] = crack_info
+                            self.cracked[ssid] = crack_info
+                self.potfile_mtimes[fname] = mtime
 
     def __init__(self):
         self._ui = None
@@ -222,15 +289,15 @@ class DisplayPassword(plugins.Plugin):
         self._lastpass = None
         self._lastidx = 0
         self._next_change_time = 0
-        self.potfile_mtime=0
+        self.potfile_mtimes={}
         self.qr_code = None
         self.text_elem = None
         self.gpio = None
         self._lastgpio = 0
+        self.potfiles = [ ]
     
     def on_loaded(self):
         logging.info("display-password loaded: %s" % self.options)
-        self.readPotfile()
 
         self.gpio = self.options.get("gpio", None)
         if self.gpio:
@@ -276,8 +343,17 @@ class DisplayPassword(plugins.Plugin):
       except Exception as e:
           logging.exception(e)
 
+    def on_config_changed(self, config):
+        shakedir = config["bettercap"].get("handshakes", '/root/handshakes')
+        for p in glob.glob(os.path.join(shakedir, '*potfile*')):
+            if p not in self.potfiles:
+                self.potfiles.append(p)
+            self.readPotfile(p)
+            logging.info("Reading %s: %s" % (p, self.cracked.keys()))
+
     def on_ready(self, agent):
         self._agent = agent
+        config = agent._config
 
         try:
             # wipe out memory of APs to get notifications sooner
@@ -327,9 +403,11 @@ class DisplayPassword(plugins.Plugin):
 
     def check_aps(self, access_points):
       try:
-        self.readPotfile()
+        # update potfiles
+        for p in self.potfiles:
+            self.readPotfile(p)
+
         self.found = {}
-        #sorted_aps = sorted(access_points, key=operator.itemgetter("last_seen",  'rssi'), reverse=True)
         sorted_aps = sorted(access_points, key=lambda x:(int(isoparse(x['last_seen']).timestamp()),
                                                          x['rssi']), reverse=True)
         logging.debug("Sorted aps: %s" % (sorted_aps))
@@ -339,16 +417,13 @@ class DisplayPassword(plugins.Plugin):
             ssid = ap['hostname'].strip()
             rssi = ap.get('rssi', '')
             if mac in self.cracked:                
-                logging.debug("APmac: %s, %s" % (self.cracked[mac].strip(), repr(ap)))
-                (amac, smac, assid, apass) = self.cracked[mac].strip().split(':', 3)
-                if ssid == assid:
-                    logging.debug("Found: %s %s ? %s" % (mac, ssid, self.cracked[mac]))
-                    self.found[mac] = [assid, apass, rssi, amac]
+                logging.debug("APmac: %s, %s" % (self.cracked[mac], repr(ap)))
+                self.found[mac] = self.cracked[mac]
+                self.found[mac]['rssi'] = rssi
             elif ssid in self.cracked:                
-                logging.debug("APssid: %s, %s" % (self.cracked[ssid].strip(), repr(ap)))
-                (amac, smac, assid, apass) = self.cracked[ssid].strip().split(':', 3)
-                logging.debug("Found: %s %s ? %s" % (mac, ssid, self.cracked[ssid]))
-                self.found[mac] = [assid, apass, rssi, amac]
+                logging.debug("APssid: %s, %s" % (self.cracked[ssid], repr(ap)))
+                self.found[mac] = self.cracked[ssid]
+                self.found[mac]['rssi'] = rssi
             else:
                 logging.debug("AP: %s, %s not found" % (mac, ssid))
       except Exception as e:
@@ -368,9 +443,9 @@ class DisplayPassword(plugins.Plugin):
             self._ui.set('display-password', dp)
             parts = dp.split('\n')
             bbox1 = self.text_elem.font.getbbox(parts[0])
-            bbox2 = self.text_elem.font.getbbox(parts[0])
+            bbox2 = self.text_elem.font.getbbox(parts[1])
             self.bbox = (min(bbox1[0], bbox2[0]), min(bbox1[1], bbox2[1]),
-                         max(bbox1[2], bbox2[2]), (bbox2[3] + (bbox2[3] - bbox2[1]) + (bbox1[3] - bbox1[1])))
+                         max(bbox1[2], bbox2[2]), (bbox1[1] + (bbox2[3] - bbox2[1]) + (bbox1[3] - bbox1[1])))
 
     def on_bcap_wifi_ap_new(self, agent, event):
         try:
@@ -382,16 +457,20 @@ class DisplayPassword(plugins.Plugin):
             rssi = ap.get('rssi', '')
 
             if mac in self.cracked:
-                (amac, smac, assid, apass) = self.cracked[mac].strip().split(':', 3)
-                logging.debug("Popped up: %s %s ? %s" % (mac, ssid, self.cracked[mac]))
-                self.found[amac] = [assid, apass, rssi, amac]
-                self.update_pass_display(assid, apass, rssi, amac)
-                self._lastpass = self.found[amac]
+                crk = self.cracked[mac]
+                crk['rssi'] = rssi
+                amac = crk['mac']
+                logging.debug("Popped up: %s %s ? %s" % (mac, ssid, crk))
+                self.found[amac] = crk
+                self.update_pass_display(crk['ssid'], crk['passwd'], rssi, amac)
+                self._lastpass = crk
             elif ssid in self.cracked:
-                (amac, smac, assid, apass) = self.cracked[ssid].strip().split(':', 3)
-                logging.debug("Popped up: %s %s ? %s" % (mac, ssid, self.cracked[ssid]))
-                self.found[amac] = [assid, apass, rssi, amac]
-                self.update_pass_display(assid, apass, rssi, amac)
+                crk = self.cracked[ssid]
+                crk['rssi'] = rssi
+                amac = crk['mac']
+                logging.debug("Popped up: %s %s ? %s" % (mac, ssid, crk))
+                self.found[amac] = crk
+                self.update_pass_display(crk['ssid'], crk['passwd'], rssi, amac)
                 self._lastpass = self.found[amac]
         except Exception as e:
             logging.exception(repr(e))
@@ -402,7 +481,11 @@ class DisplayPassword(plugins.Plugin):
         if self.options.get('demo', False):
             self.update_pass_display("Wu-Tang LAN", "NutN2F*Wit", "69", "1:2:3:4:5:6")
             ui.set('shakes', "69 (420) [Shaolin Free Wifi]")
-            self._lastpass = ["Wu-Tang LAN", "NutN2F*Wit", "69", "1:2:3:4:5:6"]
+            self._lastpass = {'ssid': "Wu-Tang LAN",
+                              'passwd': "NutN2F*Wit",
+                              'rssi': "69",
+                              'mac': "1:2:3:4:5:6",
+                              'cl_mac': '7:8:9:1:2:3'}
         elif len(self.found):
             if now > self._next_change_time:
                 mode = self.options.get("mode", "cycle")
@@ -413,7 +496,7 @@ class DisplayPassword(plugins.Plugin):
                 else:
                     self._lastidx = (self._lastidx + 1) % len(self.found)
                     self._lastpass = self.found[list(self.found)[self._lastidx]]
-                self.update_pass_display(self._lastpass[0], self._lastpass[1], self._lastpass[2], self._lastpass[3])
+                self.update_pass_display(self._lastpass['ssid'], self._lastpass['passwd'], self._lastpass['rssi'], self._lastpass['mac'])
                 self._next_change_time = now + self.options.get("update_interval", 8)
         else:
             self._lastpass = None
