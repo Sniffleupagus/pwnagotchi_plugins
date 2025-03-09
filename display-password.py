@@ -201,7 +201,7 @@ class DisplayPassword(plugins.Plugin):
     __description__ = 'A plugin to display recently cracked passwords of nearby networks'
 
     def is_valid_mac(mac_address):
-        mac_address_pattern = r"^([0-9A-Fa-f]{2}[:-]){5}([0-9A-Fa-f]{2})$"
+        mac_address_pattern = r"^([0-9A-Fa-f]{2}[:-]?){5}([0-9A-Fa-f]{2})$"
         return re.match(mac_address_pattern, mac_address) is not None
 
     def is_pmkid(text):
