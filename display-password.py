@@ -196,7 +196,7 @@ class WifiQR(Widget):
 
 class DisplayPassword(plugins.Plugin):
     __author__ = '@nagy_craig, Sniffleupagus'
-    __version__ = '1.2.2'
+    __version__ = '1.2.3'
     __license__ = 'GPL3'
     __description__ = 'A plugin to display recently cracked passwords of nearby networks'
 
@@ -225,8 +225,8 @@ class DisplayPassword(plugins.Plugin):
                 # recognize some files by name and configure field order
                 # first is the character to split each line on
                 # second is the number of fields to split into
-                # remaining numbers represent the order of:
-                #          AP mac, Client mac, SSID, and password
+                # remaining numbers are the index to AP info:
+                #    (split), (count), AP mac, Client mac, SSID, and password
                 # in the split string.
                 if 'wpa-sec' in fname:
                     svc = "WPA-SEC"
@@ -250,17 +250,19 @@ class DisplayPassword(plugins.Plugin):
 
                             if layout:
                                 parts = line.split(layout[0], layout[1])
+                                if len(parts) < layout[1]:
+                                    logging.error("Expected %s parts, only got %s: %s" % (layout[1], len(parts), line))
+                                else:
+                                    mac = parts[layout[2]]
+                                    ssid= parts[layout[4]]
+                                    crack_info={'mac': mac,
+                                                'client': parts[layout[3]],
+                                                'ssid': ssid,
+                                                'passwd': parts[layout[5]],
+                                                'service': svc}
 
-                                mac = parts[layout[2]]
-                                ssid= parts[layout[4]]
-                                crack_info={'mac': mac,
-                                            'client': parts[layout[3]],
-                                            'ssid': ssid,
-                                            'passwd': parts[layout[5]],
-                                            'service': svc}
-
-                                self.cracked[mac] = crack_info
-                                self.cracked[ssid] = crack_info
+                                    self.cracked[mac] = crack_info
+                                    self.cracked[ssid] = crack_info
                             else:
                                 # Guess layout
                                 # if it looks like a mac, its probably a mac
