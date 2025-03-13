@@ -251,7 +251,7 @@ class DisplayPassword(plugins.Plugin):
                             if layout:
                                 parts = line.split(layout[0], layout[1])
                                 if len(parts) < layout[1]:
-                                    logging.error("Expected %s parts, only got %s: %s" % (layout[1], len(parts), line))
+                                    logging.error("Expected %s parts, only got %s: '%s'" % (layout[1], len(parts), line))
                                 else:
                                     mac = parts[layout[2]]
                                     ssid= parts[layout[4]]
