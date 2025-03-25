@@ -450,20 +450,22 @@ class auto_tune(plugins.Plugin):
         try:
             if self._orig_mode != 'MANU':
                 stats = self._chistos
-                mode = 'E%3d[%ds]' % (self.ep_data.get('epoch', -1), int(self.ep_data.get('duration_secs',-1)))
+                mode = 'E%4s|%2ds' % (self.ep_data.get('epoch', 'ST'), int(self.ep_data.get('duration_secs', 0)))
                 ui.set('mode', mode)
+
                 if self._agent and self._agent._last_pwnd:
                     lt = int(time.time() - self.last_shake.get('time', time.time()))
-                    if lt > 60 * 100:
+                    if lt >= 60 * 60:
                         lt = strftime("%H:%M", time.gmtime(time.time()-lt))
-                    if lt > 180:
-                        lt = "%dm%02ds" % (int(lt / 60), lt % 60)
+                    if lt >= 100:
+                        lt = "%dm%02d" % (int(lt / 60), lt % 60)
                     else:
                         lt = "%ss" % lt
+                    pwnd_len = 22 - len(lt)
 
                     shakes = '%d/%d %s@%s' % (len(self._agent._handshakes),
                                                self._agent._total_u_shakes,
-                                               self._agent._last_pwnd[:20],
+                                               self._agent._last_pwnd[:pwnd_len].strip(),
                                                lt)
                     ui.set('shakes', shakes)
         except Exception as e:
