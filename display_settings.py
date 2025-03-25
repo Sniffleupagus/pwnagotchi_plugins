@@ -15,6 +15,7 @@ class DisplaySettings(plugins.Plugin):
     def __init__(self):
         logging.debug("DisplaySettings plugin created")
         self._ui = None
+        self._display = None
         self._original_color = BLACK
         self.change_elements = ['face']
 
@@ -51,6 +52,11 @@ class DisplaySettings(plugins.Plugin):
             self.set_background(self._original_color)
         except Exception as e:
             logging.exception(e)
+        try:
+            if hasattr(self._display, "set_backlight"):
+                self._display.set_backlight(1.0)
+        except Exception as e:
+            logging.exception(e)
         logging.info("goodbye")
 
     # called to setup the ui elements
@@ -63,9 +69,11 @@ class DisplaySettings(plugins.Plugin):
         self._display = ui._implementation
         if hasattr(self._display, "get_backlight"):
             logging.info("UI backlight ready")
-        if hasattr(self._ui, "set_backgroundcolor"):
-            logging.info("UI backgrounds ready")
+        if hasattr(self._ui, '_backgroundcolor'):
+            self._original_color = ui._backgroundcolor
+            logging.info("UI backgrounds %s" % self._original_color)
         elif  hasattr(self._ui, "_white"):
+            self._original_color = ui._white
             logging.info("UI backgrounds ok")
         # add custom UI elements
         self.set_background("#708090")
@@ -213,7 +221,7 @@ class DisplaySettings(plugins.Plugin):
     # if the agent could match the BSSIDs to the current list, otherwise they are just the strings of the BSSIDs
     def on_handshake(self, agent, filename, access_point, client_station):
         try:
-            if hasattr(self._display, "set_backlight"):
+            if self._display and hasattr(self._display, "set_backlight"):
                 self._display.set_backlight(1.0)
             self.set_background("#00FF00")
         except Exception as err:
