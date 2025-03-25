@@ -16,7 +16,7 @@ from flask import render_template_string
 
 class auto_tune(plugins.Plugin):
     __author__ = 'Sniffleupagus'
-    __version__ = '1.0.2'
+    __version__ = '1.0.3'
     __license__ = 'GPL3'
     __description__ = 'A plugin that adjust AUTO mode parameters'
 
@@ -113,7 +113,7 @@ class auto_tune(plugins.Plugin):
         self._chistos = { '_all_actions' : { -1:0 } }  # arbitrary session stats per channel
 
         # plugin data
-        self.ep_duration = 0
+        self.ep_data = {}
         self.last_shake = {'time': time.time()}
         self._unscanned_channels = [] # temporary set of channels to pull "extra_channels" from
         self._active_channels = []    # list of channels with APs found in last scan
@@ -450,13 +450,21 @@ class auto_tune(plugins.Plugin):
         try:
             if self._orig_mode != 'MANU':
                 stats = self._chistos
-                mode = 'AT %ss' % (int(self.ep_duration))
+                mode = 'E%3d[%ds]' % (self.ep_data.get('epoch', -1), int(self.ep_data.get('duration_secs',-1)))
                 ui.set('mode', mode)
-                if self._agent and self.last_shake:
-                    shakes = '%d/%d %s@%ds' % (len(self._agent._handshakes),
+                if self._agent and self._agent._last_pwnd:
+                    lt = int(time.time() - self.last_shake.get('time', time.time()))
+                    if lt > 60 * 100:
+                        lt = strftime("%H:%M", time.gmtime(time.time()-lt))
+                    if lt > 180:
+                        lt = "%dm%02ds" % (int(lt / 60), lt % 60)
+                    else:
+                        lt = "%ss" % lt
+
+                    shakes = '%d/%d %s@%s' % (len(self._agent._handshakes),
                                                self._agent._total_u_shakes,
                                                self._agent._last_pwnd[:20],
-                                               int(time.time() - self.last_shake.get('time', time.time())))
+                                               lt)
                     ui.set('shakes', shakes)
         except Exception as e:
             logging.exception(e)
@@ -498,7 +506,8 @@ class auto_tune(plugins.Plugin):
         if agent._config.get('ai', {}).get('enabled', False):
             return
 
-        self.ep_duration = epoch_data['duration_secs']
+        self.ep_data = epoch_data
+        self.ep_data['epoch'] = epoch
 
         try:
             next_channels = self._active_channels.copy()
