@@ -2,6 +2,7 @@ import logging
 import random
 import time
 import html
+import os
 
 import pwnagotchi.plugins as plugins
 from pwnagotchi.ui.components import LabeledValue
@@ -15,7 +16,7 @@ from flask import render_template_string
 
 class auto_tune(plugins.Plugin):
     __author__ = 'Sniffleupagus'
-    __version__ = '1.0.1'
+    __version__ = '1.0.2'
     __license__ = 'GPL3'
     __description__ = 'A plugin that adjust AUTO mode parameters'
 
@@ -112,6 +113,8 @@ class auto_tune(plugins.Plugin):
         self._chistos = { '_all_actions' : { -1:0 } }  # arbitrary session stats per channel
 
         # plugin data
+        self.ep_duration = 0
+        self.last_shake = {'time': time.time()}
         self._unscanned_channels = [] # temporary set of channels to pull "extra_channels" from
         self._active_channels = []    # list of channels with APs found in last scan
         self._known_aps = {}          # dict of all APs by normalized name+mac
@@ -131,6 +134,10 @@ class auto_tune(plugins.Plugin):
             "min_rssi" : "ignore APs with signal weaker than this value. lower values will attack more distant APs",
             "recon_time" : "duration of the bettercap channel hopping scan phase, to discover APs before sending attacks",
             "min_recon_time" : "time spent on each occupied channel per epoch, sending attacks and waiting for handshakes. and epoch is recon_time + #channels * min_recon_time seconds long",
+            "hop_recon_time" : "time spent on channel after sending deauths. usually longer than min_recon_time",
+            "max_interactions" : "number of times to perform attacks on an AP, per session",
+            "max_inactive_scale" : "after this many inactive epochs, multiply recon_time by recon_inactive_multiplier for modified strategy",
+            "recon_inactive_multiplier" : "if inactive too long, modify recon duration to scan longer (1-10)",
             "ap_ttl" : "APs that have not been seen since this many seconds are ignored. Shorten this if you are moving, to not try to scan APs that are no longer in range.",
             "sta_ttl" : "Clients older than this will ignored",
         }
@@ -258,6 +265,45 @@ class auto_tune(plugins.Plugin):
                 ret += "%s visible, %s hidden networks<p>" % (numVisible, numHidden)
 
         return ret
+
+    ProfileDir = "/etc/pwnagotchi/auto_tune/"
+    try:
+        os.mkdir(ProfileDir)
+    except OSError as error:
+        logging.debug(error)
+
+    def load_profile(self, profile_name):
+        if not self._agent:
+            return
+        file = os.path.join(ProfileDir, "%s.txt" % profile_name)
+        if os.path.isFile(file):
+            with open(file, 'r') as f:
+                profile = json.load(f)
+            logging.info("Read profile:")
+            if 'ops' in profile:
+                for k,v in profile['ops'].items():
+                    logging.info("Option %s = %s" % (k,v))
+                    self.options[k] = v
+            if 'personality' in profile:
+                for k,v in profile['personality'].items():
+                    logging.info("Option %s = %s" % (k,v))
+                    self._agent._config['personality'][k] = v
+
+    def save_profile(self, profile_name):
+        if not self._agent:
+            return
+        profile = { 'ops':{}, 'personality':{} }
+        for op in self.options:
+            profile['ops'][op] = self.options[op]
+        for p in self._agent._config['personality']:
+            profile['personality'][p] = self._agent._config['personality'][p]
+
+        file = os.path.join(ProfileDir, "%s.txt" % profile_name)
+        try:
+            with open(file, 'w') as f:
+                f.write(json.dumps(profile, indent=2))
+        except Exception as e:
+            logging.exception(e)
 
     def update_parameter(self, cfg, parameter, vtype, val, ret):
         changed = False
@@ -404,8 +450,14 @@ class auto_tune(plugins.Plugin):
         try:
             if self._orig_mode != 'MANU':
                 stats = self._chistos
-                mode = 'AT(%d/%d)' % (stats.get('Current APs',{}).get(-1,0), stats.get('Unique APs',{}).get(-1,0))
+                mode = 'AT %ss' % (int(self.ep_duration))
                 ui.set('mode', mode)
+                if self._agent and self.last_shake:
+                    shakes = '%d/%d %s@%ds' % (len(self._agent._handshakes),
+                                               self._agent._total_u_shakes,
+                                               self._agent._last_pwnd[:20],
+                                               int(time.time() - self.last_shake.get('time', time.time())))
+                    ui.set('shakes', shakes)
         except Exception as e:
             logging.exception(e)
 
@@ -445,6 +497,8 @@ class auto_tune(plugins.Plugin):
         # pick set of channels for next time
         if agent._config.get('ai', {}).get('enabled', False):
             return
+
+        self.ep_duration = epoch_data['duration_secs']
 
         try:
             next_channels = self._active_channels.copy()
@@ -545,6 +599,9 @@ class auto_tune(plugins.Plugin):
         try:
             self.incrementChisto('Handshakes', access_point['channel'])
             self.markAPSeen(access_point, "handshake")
+            self.last_shake = {'time':time.time(),
+                               'ap':access_point,
+                               'cl':client_station}
         except Exception as e:
             logging.exception(e)
 
@@ -555,7 +612,6 @@ class auto_tune(plugins.Plugin):
             apmac = self.normalize(ap['mac'])
             apID = apname + '-' + apmac
             channel = ap['channel']
-
             self.markAPSeen(ap)
 
         except Exception as e:
