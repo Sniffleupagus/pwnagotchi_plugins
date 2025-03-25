@@ -196,7 +196,7 @@ class WifiQR(Widget):
 
 class DisplayPassword(plugins.Plugin):
     __author__ = '@nagy_craig, Sniffleupagus'
-    __version__ = '1.2.3'
+    __version__ = '1.2.4'
     __license__ = 'GPL3'
     __description__ = 'A plugin to display recently cracked passwords of nearby networks'
 
@@ -247,7 +247,8 @@ class DisplayPassword(plugins.Plugin):
                     for line in f:
                         try:
                             line = line.strip()
-
+                            if line == '':
+                                continue
                             if layout:
                                 parts = line.split(layout[0], layout[1])
                                 if len(parts) < layout[1]:
