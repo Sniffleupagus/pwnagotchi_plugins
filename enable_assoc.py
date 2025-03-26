@@ -6,6 +6,8 @@ from pwnagotchi.ui.components import LabeledValue
 from pwnagotchi.ui.view import BLACK
 import pwnagotchi.ui.fonts as fonts
 
+from flask import redirect
+
 try:
     sys.path.append(os.path.dirname(__file__))
     from Touch_UI import Touch_Button, Touch_Screen
