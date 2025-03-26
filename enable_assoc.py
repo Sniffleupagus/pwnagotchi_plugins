@@ -33,7 +33,8 @@ class enable_assoc(plugins.Plugin):
             path = request.path
             if "/toggle" in path:
                 self._ui._state._state['assoc_count'].state = not self._ui._state._state['assoc_count'].state
-                self._agent._config['personality']['associate'] = self._ui._state._state['assoc_count'].state
+                if self._agent:
+                    self._agent._config['personality']['associate'] = self._ui._state._state['assoc_count'].state
                 logging.info("Toggled assoc to %s" % repr(self._ui._state._state['assoc_count'].state))
                 return "OK", 204
             else:
