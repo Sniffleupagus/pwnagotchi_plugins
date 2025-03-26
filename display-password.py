@@ -29,6 +29,8 @@ from datetime import datetime, date
 from urllib.parse import urlparse, unquote
 from dateutil.parser import isoparse
 
+from flask import redirect
+
 try:
     import dpkt
 except Exception as e:
@@ -245,7 +247,9 @@ class DisplayPassword(plugins.Plugin):
 
                 logging.info("Reading potfile %s" % fname)
                 with open(fname) as f:
-                    for line in f:
+                    lines = f.readlines()
+                if len(lines):
+                    for line in lines:
                         try:
                             line = line.strip()
                             if line == '':
@@ -299,6 +303,7 @@ class DisplayPassword(plugins.Plugin):
                         except Exception as e:
                             logging.exception("Error processing potfile %s: %s" % (fname,e))
                             break
+                    logging.info("From %s %s. Total %s" % (fname, len(lines), len(self.cracked.values())))
                 self.potfile_mtimes[fname] = mtime
 
     def __init__(self):
@@ -576,6 +581,7 @@ class DisplayPassword(plugins.Plugin):
             path = request.path
             if "/toggle" in path:
                 self.toggleQR("web")
+                return redirect(request.referrer)
                 return "OK", 204
             elif "/demo" in path:
                 self.options['demo'] = not self.options.get('demo', False)
