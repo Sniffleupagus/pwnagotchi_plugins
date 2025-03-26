@@ -16,7 +16,7 @@ from flask import render_template_string
 
 class auto_tune(plugins.Plugin):
     __author__ = 'Sniffleupagus'
-    __version__ = '1.0.3'
+    __version__ = '1.0.4'
     __license__ = 'GPL3'
     __description__ = 'A plugin that adjust AUTO mode parameters'
 
@@ -455,9 +455,11 @@ class auto_tune(plugins.Plugin):
 
                 if self._agent and self._agent._last_pwnd:
                     lt = int(time.time() - self.last_shake.get('time', time.time()))
-                    if lt >= 60 * 60:
-                        lt = strftime("%H:%M", time.gmtime(time.time()-lt))
-                    if lt >= 100:
+                    if lt >= 1: #60 * 60:
+                        hours = int(lt / 3600)
+                        mins = int((lt % 3600) / 60)
+                        lt = "%d:%02d" % (hours, mins)
+                    elif lt >= 100:
                         lt = "%dm%02d" % (int(lt / 60), lt % 60)
                     else:
                         lt = "%ss" % lt
