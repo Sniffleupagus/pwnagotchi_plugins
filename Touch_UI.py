@@ -428,7 +428,6 @@ class Touch_Screen(plugins.Plugin):
 
                     while self.keepGoing:
                         t = gt.digital_read(gt.INT)
-                        logging.debug("Loop: %s %s" % (gt.INT, t))
                         if t == 0:
                             touches = gt.touchscan()
                             logging.debug("Reading: %s" % repr(touches))
