@@ -28,7 +28,19 @@ class enable_assoc(plugins.Plugin):
     # must return a html page
     # IMPORTANT: If you use "POST"s, add a csrf-token (via csrf_token() and render_template_string)
     def on_webhook(self, path, request):
-        return "<html><head><title>Nothing happened</title></head><body><h1>Nothing happened.</h1></body></html>"
+        try:
+            method = request.method
+            path = request.path
+            if "/toggle" in path:
+                self._ui._state._state['assoc_count'].state = not self._ui._state._state['assoc_count'].state
+                self._agent._config['personality']['associate'] = self._ui._state._state['assoc_count'].state
+                logging.info("Toggled assoc to %s" % repr(self._ui._state._state['assoc_count'].state))
+                return "OK", 204
+            else:
+                return "<html><head><title>Nothing happened</title></head><body><h1>Nothing happened.</h1></body></html>"
+        except Exception as e:
+            logging.exception(e)
+            return "<html><head><title>Nothing happened</title></head><body><h1>Error: %s</h1></body></html>" % (e)
 
     # called when the plugin is loaded
     def on_loaded(self):
@@ -93,17 +105,18 @@ class enable_assoc(plugins.Plugin):
 
         try:
             curstate = self._agent._config['personality']['associate'] if self._agent else True
-            ui.add_element('assoc_count', Touch_Button(position=pos,
-                                                       color='#ccccff', alt_color='White',
-                                                       outline="DarkGray",
-                                                       state=curstate,
-                                                       text="assoc", value=0, text_color="Black",
-                                                       alt_text=None, alt_text_color="Green",
-                                                       font=fonts.Medium, alt_font=fonts.Medium,
-                                                       shadow="Black", highlight="White",
-                                                       event_handler="enable_assoc"
-                                                       )
-                           )
+            button = Touch_Button(position=pos,
+                                  color='#ccccff', alt_color='White',
+                                  outline="DarkGray",
+                                  state=curstate,
+                                  text="assoc", value=0, text_color="Black",
+                                  alt_text=None, alt_text_color="Green",
+                                  font=fonts.Medium, alt_font=fonts.Medium,
+                                  shadow="Black", highlight="White",
+                                  event_handler="enable_assoc"
+                                  )
+            ui.add_element('assoc_count', button)
+            button.set_click_url("/plugins/enable_assoc/toggle")
         except Exception as e:
             ui.add_element('assoc_count', LabeledValue(color=BLACK, label='A', value='0', position=pos,
                                                        label_font=fonts.BoldSmall, text_font=fonts.Small))
