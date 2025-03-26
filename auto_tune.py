@@ -438,6 +438,8 @@ class auto_tune(plugins.Plugin):
     # called before the plugin is unloaded
     def on_unload(self, ui):
         ui.set('mode', self._orig_mode)
+        if hasattr(ui._state._state['mode'], 'set_click_url'):
+            ui._state._state['mode'].set_click_url('http://pwnagotchi.org')
 
     def on_ui_setup(self, ui):
         self._ui = ui
@@ -445,6 +447,9 @@ class auto_tune(plugins.Plugin):
 
         if self._orig_mode != 'MANU':
             ui.set('mode', 'AT')
+
+        if hasattr(ui._state._state['mode'], 'set_click_url'):
+            ui._state._state['mode'].set_click_url('/plugins/auto_tune')
 
     def on_ui_update(self, ui):
         try:

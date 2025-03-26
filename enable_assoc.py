@@ -12,6 +12,23 @@ try:
 except Exception as e:
     logging.warn(repr(e))
 
+
+def ok204_or_redirect(request):
+    ua = request.user_agent
+    logging.debug("UA: platform: %s, browser: %s, version: %s, language: %s\n\tstring: %s" % (ua.platform, ua.browser, ua.version, ua.language, ua.string))
+    try:
+        if ua.browser == 'safari':
+            if ua.platform == 'iphone' or 'iPhone' in ua.string:
+                logging.debug("Redirect: %s" % ua.string)
+                return redirect(request.referrer)
+            else:
+                return 'OK', 204
+        else:
+            return 'OK', 204
+    except Exception as e:
+        logging.exception("UA: %s, error: %s" % (repr(ua), e))
+        return e,204
+
 class enable_assoc(plugins.Plugin):
     __author__ = 'evilsocket@gmail.com'
     __version__ = '1.0.0'
@@ -36,7 +53,7 @@ class enable_assoc(plugins.Plugin):
                 if self._agent:
                     self._agent._config['personality']['associate'] = self._ui._state._state['assoc_count'].state
                 logging.info("Toggled assoc to %s" % repr(self._ui._state._state['assoc_count'].state))
-                return "OK", 204
+                return ok204_or_redirect(request)
             else:
                 return "<html><head><title>Nothing happened</title></head><body><h1>Nothing happened.</h1></body></html>"
         except Exception as e:

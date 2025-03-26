@@ -50,6 +50,22 @@ except Exception as e:
     logging.info("\t# pip3 install qrcode")
     qrcode = None
 
+def ok204_or_redirect(request):
+    ua = request.user_agent
+    logging.debug("UA: platform: %s, browser: %s, version: %s, language: %s\n\tstring: %s" % (ua.platform, ua.browser, ua.version, ua.language, ua.string))
+    try:
+        if ua.browser == 'safari':
+            if ua.platform == 'iphone' or 'iPhone' in ua.string:
+                logging.debug("Redirect: %s" % ua.string)
+                return redirect(request.referrer)
+            else:
+                return 'OK', 204
+        else:
+            return 'OK', 204
+    except Exception as e:
+        logging.exception("UA: %s, error: %s" % (repr(ua), e))
+        return e,204
+
 class WifiQR(Widget):
     def __init__(self, ssid, passwd, mac, rssi, color = 0, version=6, box_size=3, border=4, demo=False):
         super().__init__(color)
@@ -581,8 +597,7 @@ class DisplayPassword(plugins.Plugin):
             path = request.path
             if "/toggle" in path:
                 self.toggleQR("web")
-                return redirect(request.referrer)
-                return "OK", 204
+                return ok204_or_redirect(request)
             elif "/demo" in path:
                 self.options['demo'] = not self.options.get('demo', False)
                 return "OK - Demo %s" % self.options['demo']
