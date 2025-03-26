@@ -209,7 +209,8 @@ class WifiQR(Widget):
             self.value = self.img
             self.image = self.img
             canvas.paste(self.img, self.xy)
-            self.set_click_url('/plugins/display-password/toggle')
+            if hasattr(self, 'set_click_url'):
+                self.set_click_url('/plugins/display-password/toggle')
         except Exception as e:
             logging.exception("Image failed: %s, %s" % (self.img, self.xy))
 
@@ -419,7 +420,8 @@ class DisplayPassword(plugins.Plugin):
             self.text_elem.state = True   # make touchable
             self.text_elem.event_handler = "display-password"
             ui.add_element('display-password', self.text_elem)
-            self.text_elem.set_click_url('/plugins/display-password/toggle')
+            if hasattr(self.text_elem, 'set_click_url'):
+                self.text_elem.set_click_url('/plugins/display-password/toggle')
         except Exception as e:
             logging.exception(e)
 

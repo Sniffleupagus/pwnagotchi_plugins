@@ -134,7 +134,8 @@ class enable_assoc(plugins.Plugin):
                                   event_handler="enable_assoc"
                                   )
             ui.add_element('assoc_count', button)
-            button.set_click_url("/plugins/enable_assoc/toggle")
+            if hasattr(button, 'set_click_url'):
+                button.set_click_url("/plugins/enable_assoc/toggle")
         except Exception as e:
             ui.add_element('assoc_count', LabeledValue(color=BLACK, label='A', value='0', position=pos,
                                                        label_font=fonts.BoldSmall, text_font=fonts.Small))
