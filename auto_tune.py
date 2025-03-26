@@ -460,17 +460,19 @@ class auto_tune(plugins.Plugin):
 
                 if self._agent and self._agent._last_pwnd:
                     lt = int(time.time() - self.last_shake.get('time', time.time()))
-                    if lt >= 1: #60 * 60:
+                    if lt == 0:
+                        lt = ""
+                    elif lt >= 60 * 60:
                         hours = int(lt / 3600)
                         mins = int((lt % 3600) / 60)
-                        lt = "%d:%02d" % (hours, mins)
+                        lt = "@%d:%02d" % (hours, mins)
                     elif lt >= 100:
-                        lt = "%dm%02d" % (int(lt / 60), lt % 60)
+                        lt = "@%dm%02d" % (int(lt / 60), lt % 60)
                     else:
-                        lt = "%ss" % lt
+                        lt = "@%ss" % lt
                     pwnd_len = 22 - len(lt)
 
-                    shakes = '%d/%d %s@%s' % (len(self._agent._handshakes),
+                    shakes = '%d/%d %s%s' % (len(self._agent._handshakes),
                                                self._agent._total_u_shakes,
                                                self._agent._last_pwnd[:pwnd_len].strip(),
                                                lt)
