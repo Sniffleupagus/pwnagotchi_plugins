@@ -34,3 +34,6 @@ class PwnClock(plugins.Plugin):
         now = datetime.datetime.now()
         time_rn = now.strftime(self.date_format)
         ui.set('clock', time_rn)
+
+    def on_unload(self, ui):
+        ui.remove_element('clock')
