@@ -472,8 +472,8 @@ class auto_tune(plugins.Plugin):
                         lt = "@%ss" % lt
                     pwnd_len = 22 - len(lt)
 
-                    shakes = '%d/%d %s%s' % (len(self._agent._handshakes),
-                                               self._agent._total_u_shakes,
+                    shakes = '%d/%s %s%s' % (len(self._agent._handshakes),
+                                               self._agent._total_u_shakes if hasattr(self._agent, '_total_u_shakes') else pwnagotchi.utils.total_unique_handshakes(self._agent._config['bettercap']['handshakes']),
                                                self._agent._last_pwnd[:pwnd_len].strip(),
                                                lt)
                     ui.set('shakes', shakes)
