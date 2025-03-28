@@ -259,7 +259,67 @@ class Tweak_View(plugins.Plugin):
             res += "<li><b>update from request err:</b> %s" % repr(err)
         res += "</ul>"
         return res
-    
+
+    def set_background(self, color):
+        try:
+            logging.debug("Set BG to %s" % (color))
+            if not self._ui:
+                return
+            if hasattr(self._ui, "_white"):
+                self._ui._white = color
+            elif hasattr(self._ui, "set_backgroundcolor"):
+                self._ui.set_backgroundcolor(color)
+            for e in self.change_elements:
+                if e in self._ui._state._state and hasattr(self._ui._state._state[e], 'setBackground'):
+                    self._ui._state._state[e].setBackground(color)
+        except Exception as e:
+            logging.exception(e)
+
+    def set_foreground(self, color):
+        try:
+            logging.debug("Set FG to %s" % (color))
+            if not self._ui:
+                return
+            if hasattr(self._ui, "_black"):
+                self._ui._black = color
+            elif hasattr(self._ui, "set_foregroundcolor"):
+                self._ui.set_foregroundcolor(color)
+            for e in self.change_elements:
+                if e in self._ui._state._state and hasattr(self._ui._state._state[e], 'setForeground'):
+                    self._ui._state._state[e].setForeground(color)
+        except Exception as e:
+            logging.exception(e)
+
+    def rotate_screen(self, rot):
+        if rot and self._ui:
+            rot = int(rot)
+            self.rotation = rot
+            self._ui._rotation = rot
+            self._agent._config['ui']['display']['rotation'] = rot
+            if (rot/90)%2 == 0:
+                self._ui._width = self._ui._layout['width']
+                self._ui._height = self._ui._layout['height']
+            else:
+                # when rotated 90 or 270, swap width and height
+                self._ui._width = self._ui._layout['height']
+                self._ui._height = self._ui._layout['width']
+
+    def ok204_or_redirect(self, request):
+        ua = request.user_agent
+        logging.debug("UA: platform: %s, browser: %s, version: %s, language: %s\n\tstring: %s" % (ua.platform, ua.browser, ua.version, ua.language, ua.string))
+        try:
+            if ua.browser == 'safari':
+                if ua.platform == 'iphone' or 'iPhone' in ua.string:
+                    logging.debug("Redirect: %s" % ua.string)
+                    return redirect(request.referrer)
+                else:
+                    return 'OK', 204
+            else:
+                return 'OK', 204
+        except Exception as e:
+            logging.exception("UA: %s, error: %s" % (repr(ua), e))
+            return e,304
+
     # called when http://<host>:<port>/plugins/<plugin>/ is called
     # must return a html page
     # IMPORTANT: If you use "POST"s, add a csrf-token (via csrf_token() and render_template_string)
@@ -269,8 +329,30 @@ class Tweak_View(plugins.Plugin):
                 self._agent = self._ui._agent
                 if self._agent:
                     logging.info("MANU mode. Snagged agent from ui")
+            rpath = request.path
             if request.method == "GET":
-                if path == "/" or not path:
+                if "/rotate" in rpath:
+                    # change screen rotation
+                    rot = request.args.get('rot', None)
+                    self.rotate_screen(rot)
+                    return self.ok204_or_redirect(request)
+                elif "/profile/save" in rpath:
+                    pname = request.args.get('name', None)
+                    rot = request.args.get('rot', None)
+
+                    if pname and self.save_profile(pname, rot):
+                        return self.ok204_or_redirect(request)
+                    else:
+                        return "<html><body>ERROR! %s</body?</html>" % ("Unable to save profile")
+                elif "/profile/load" in rpath:
+                    pname = request.args.get('name', None)
+                    rot = request.args.get('rot', None)
+
+                    if pname and self.load_profile(pname, rot):
+                        return self.ok204_or_redirect(request)
+                    else:
+                        return "<html><body>ERROR! %s</body?</html>" % ("Unable to load profile")
+                elif path == "/" or not path:
                     
                     ret = '<html><head><title>Tweak view. Woohoo!</title><meta name="csrf_token" content="{{ csrf_token() }}"></head>'
                     ret += "<body><h1>Tweak View</h1>"
@@ -361,7 +443,7 @@ class Tweak_View(plugins.Plugin):
                 
                     
         except Exception as err:
-            self._logger.warning("webhook err: %s" % repr(err))
+            self._logger.exception("webhook err: %s" % repr(err))
             return "<html><head><title>oops</title></head><body><code>%s</code></body></html>" % html.escape(repr(err))
 
     # called when the plugin is loaded
@@ -370,12 +452,12 @@ class Tweak_View(plugins.Plugin):
         self._state = 0
         self._next = 0
 
-
     # called when everything is ready and the main loop is about to start
     def on_ready(self, agent):
         logging.info("Tweakview ready")
         self._agent = agent
-
+        self._rotation = agent._config['ui']['display']['rotation']
+        self.change_elements = self.options.get("change_elements", ['face'])
 
     # called before the plugin is unloaded
     def on_unload(self, ui):
@@ -386,6 +468,8 @@ class Tweak_View(plugins.Plugin):
                 vss,element,key = tag.split(".")
                 self._logger.debug("Reverting: %s to %s" % (tag, repr(value)))
                 if key in dir(ui._state._state[element]):
+                    if key in self._tweaks:
+                        del self._tweaks[key]
                     if key == "xy":
                         ui._state._state[element].xy = value
                         self._logger.debug("Reverted %s xy to %s" % (element, repr(ui._state._state[element].xy)))
@@ -400,8 +484,84 @@ class Tweak_View(plugins.Plugin):
         except Exception as err:
             self._logger.warning("ui unload: %s, %s" % (repr(err), repr(ui)))
 
+    def untweak(self):
+        if self._ui:
+            self.on_unload(self._ui)
 
+    def load_tweak_file(self, filename=None):
+        try:
+            b_name, extn = os.path.basename(filename).split('.')
+            if os.path.isfile(filename):
+                with open(filename, 'r') as f:
+                    tweaks = json.load(f)
 
+                # merge new tweaks
+                for i in self._tweaks:
+                    self._tweaks[i] = tweaks[i]
+                    self._logger.debug ("Ready tweak %s -> %s" % (i, self._tweaks[i]))
+
+                if 'D.rotation' in self._tweaks:
+                    self.rotate_screen(self._tweaks['D.rotation'])
+                if 'D.bgcolor' in self._tweaks:
+                    if self._ui:
+                        self.set_background(self._tweaks['D.bgcolor'])
+                if 'D.fgcolor' in self._tweaks:
+                    if self._ui:
+                        self.set_foreground(self._tweaks['D.fgcolor'])
+
+            # reset so everything gets moved next update
+            self._already_updated = []
+            self._logger.info("Tweak view '%s' loaded." % (b_name))
+
+        except Exception as err:
+            self._logger.warn("TweakUI loading failed: %s" % repr(err))
+
+    def load_profile(self, name, rotation=None):
+        if not self._agent:
+            return False
+        
+        # undo the old tweaks
+        self.untweak()
+
+        rot = self._agent._config['ui']['display'].get('rotation', 'ANY') if not rotation else rotation
+        dt = self._agent._config['ui']['display'].get('type', 'ANY')
+        d_dims = "%sx%s" % (self._ui.width(), self._ui.height())
+        r_dims = "%sx%s" % (self._ui.height(), self._ui.width())
+        
+        for d in [d_dims, r_dims, 'ANY']:
+            for r in [rot, 'ANY']:
+                fname = "/etc/pwnagotchi/tweak_view/profile-%s-%s-%s.json" % (name, r, d)
+                if os.path.isfile(fname):
+                    if self.load_tweak_file(fname):
+                        self._already_updated = []
+                        return True
+        return False
+
+    def save_profile(self, name, rotation=None):
+        if not self._agent or not self._ui:
+            return False
+
+        rot = self._agent._config['ui']['display'].get('rotation', 'ANY') if not rotation else rotation
+        d_dims = "%sx%s" % (self._ui.width(), self._ui.height())
+
+        fname = "/etc/pwnagotchi/tweak_view/profile-%s-%s-%s.json" % (name, rot, d_dims)
+        profile = self._tweaks.copy()
+        profile['D.rotation'] = rot
+
+        try:
+            os.mkdir("/etc/pwnagotchi/tweak_view")
+        except FileExistsError:
+            pass
+
+        try:
+            with open(fname, "w") as f:
+                f.write(json.dumps(profile, indent=4))
+            return True
+        except Exception as err:
+            logging.exception("Unable to save profile %s-%s-%s: %s" % (name, rot, d_dims, repr(err)))
+            return False
+
+        
     # called to setup the ui elements
     # look at config. Move items around as desired
     def on_ui_setup(self, ui):
@@ -457,8 +617,10 @@ class Tweak_View(plugins.Plugin):
             # go through list of tweaks
             updated = []
             for tag, value in self._tweaks.items():
-                vss,element,key = tag.split(".")
+                if not tag.startswith('VSS.'):
+                    continue
                 try:
+                    vss,element,key = tag.split(".")
                     if element not in self._already_updated and element in state and key in dir(state[element]):
                         if tag not in self._untweak:
                             #self._untweak[tag] = eval("ui._state._state[element].%s" % key)
