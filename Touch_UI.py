@@ -253,7 +253,7 @@ def singleton(cls, *args, **kw):
 @singleton
 class Touch_Screen(plugins.Plugin):
     __author__ = 'Sniffleupagus'
-    __version__ = '1.0.0'
+    __version__ = '1.0.1'
     __license__ = 'GPL3'
     __description__ = 'Use touchscreen input to toggle settings.'
 
@@ -398,9 +398,17 @@ class Touch_Screen(plugins.Plugin):
                             rotation = self._agent._config['ui']['display']['rotation'] if self._agent else 180
 
                             if rotation == 180: # 0,0 is top left, but touch screen 0,0 is bottom left
-                                x = self._view._width - x
+                                x = self._view.width() - x
+                            elif rotation == 270:
+                                x1 = self._view.width() - y
+                                y = x
+                                x = x1
+                            elif rotation == 90:
+                                y1 = self._view.height() - x
+                                x = y
+                                y = y1
                             else:
-                                y = self._view._height - y
+                                y = self._view.height() - y
 
                             depth = int(depth)
                             if tstamp:
@@ -423,7 +431,6 @@ class Touch_Screen(plugins.Plugin):
 
                     flag_t = 1
 
-                    rotation = self._agent._config['ui']['display'].get('rotation', 180) if self._agent else 180
                     in_touch = False
 
                     while self.keepGoing:
@@ -436,12 +443,21 @@ class Touch_Screen(plugins.Plugin):
                                 x = touch['y']
                                 y = touch['x']
                                 s = touch['s']
+                                rotation = self._agent._config['ui']['display'].get('rotation', 180) if self._agent else 180
                                 if rotation == 180: # 0,0 is top left, but touch screen 0,0 is bottom left
-                                    x = self._view._width - x
+                                    x = self._view.width() - x
+                                elif rotation == 90:
+                                    x1 = self._view.width() - y
+                                    y = x
+                                    x = x1
+                                elif rotation == 270:
+                                    y1 = self._view.height() - x
+                                    x = self._view.width() - y
+                                    y = y1
                                 else:
-                                    y = self._view._height - y
+                                    y = self._view.height() - y
 
-                                logging.debug("Touch %s: %s" % (t, touch))
+                                logging.warn("Touch %s: %s, %s x %s" % (t, touch, x, y))
                                 self.process_touch([x, y], s)
                                          
                         time.sleep(0.1)
