@@ -5,12 +5,18 @@ import threading
 import time
 import os
 import prctl
+import requests
 import RPi.GPIO as GPIO
 from smbus import SMBus
 
 import numpy as np
 
 from subprocess import Popen, PIPE, check_output
+
+from flask import redirect
+
+from urllib.parse import unquote
+from urllib.parse import urlparse
 
 import pwnagotchi.plugins as plugins
 from pwnagotchi.ui.components import *
@@ -472,10 +478,39 @@ class Touch_Screen(plugins.Plugin):
     # called when http://<host>:<port>/plugins/<plugin>/ is called
     # must return a html page
     # IMPORTANT: If you use "POST"s, add a csrf-token (via csrf_token() and render_template_string)
-    #def on_webhook(self, path, request):
+    def on_webhook(self, path, request):
         # define which elements are active or not
         # show pwny image. send clicks through
     #    pass
+        try:
+            logging.warn("WEBHOOK %s: %s, %s" % (path, request.query_string.decode(), ",".join([f"{key}={value}" for key, value in request.args.items()])))
+            query = urlparse(path)
+            logging.warn(query)
+            x,y = list(map(int,request.query_string.decode().split(",")))
+            parts = path.split("/")
+            coords = parts[-1]
+            logging.warn("Split: %s have %s" % (parts, coords))
+            w,h = list(map(int,coords.split("x")))
+            rw = self._view.width()
+            rh = self._view.height()
+            ex = int(rw * x / w)
+            ey = int(rh * y / h)
+            logging.warn("Effective click: %f, %f" % (ex, ey))
+            for (shape, coords, key, link) in self._agent._view._state.get_map_actions():
+                bbox = list(map(int,coords.split(',')))
+                if self.pointInBox((ex,ey), bbox):
+                    try:
+                        logging.info("%s" % (link))
+                        #response = requests.get(link)
+                        return redirect(link)
+
+                    except Exception as e:
+                        logging.exception(e)
+            #self.process_touch([ex, ey], 0)
+            return "OK", 204
+        except Exception as e:
+            logging.exception(e)
+
 
     # called when the plugin is loaded
     def on_loaded(self):
@@ -593,13 +628,34 @@ class Touch_Screen(plugins.Plugin):
                 touch_elements.reverse()
                 for te in touch_elements:
                     logging.debug("Checking %s, %s" % (te, repr(ui_elements[te].xy)))
-                    if self.pointInBox(tpoint, ui_elements[te].xy):
+                    if hasattr(ui_elements[te], 'get_bb'):
+                        if self.pointInBox(tpoint, ui_elements[te].get_bb()):
+                            logging.debug("Touched element %s: %s @ %s" % (repr(te),
+                                                                           depth,
+                                                                           repr(tpoint)))
+                            touch_element = te
+                            break # stop at first match                                                                              
+                    elif self.pointInBox(tpoint, ui_elements[te].xy):
                         logging.debug("Touched element %s: %s @ %s" % (repr(te),
                                                                       depth,
                                                                       repr(tpoint)))
                         touch_element = te
                         break # stop at first match
 
+            if not touch_element:
+                for (shape, coords, key, link) in self._agent._view._state.get_map_actions():
+                    bbox = list(map(int,coords.split(',')))
+                    if self.pointInBox(tpoint, bbox):
+                        try:
+                            if link.startswith("/"):
+                                link = "http://pwny:pwny1234@127.0.0.1:8080%s" % (link)
+                            logging.warn("Touch action: %s -> %s" % (key, link))
+                            response = requests.get(link)
+                            logging.info("%s" % (repr(response)))
+                            return
+                        except Exception as e:
+                            logging.exception(e)
+                
         except Exception as e:
             logging.exception(repr(e))
 
