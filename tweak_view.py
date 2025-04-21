@@ -390,7 +390,11 @@ class Tweak_View(plugins.Plugin):
                             if d in self._untweak:
                                 try:
                                     ret += "<li>Revert %s: %s" % (d, repr(self._untweak[d]))
-                                    vss, element, key = d.split(".")
+                                    try:
+                                        vss, element, key = d.split(".")
+                                    except:
+                                        logging.warn("Skipping %s" % d)
+                                        continue
                                     ui = self._agent.view()
                                     if hasattr(ui._state._state[element], key):
                                         value = self._untweak[d]
@@ -465,7 +469,10 @@ class Tweak_View(plugins.Plugin):
             state = ui._state._state
             # go through list of untweaks
             for tag, value in self._untweak.items():
-                vss,element,key = tag.split(".")
+                try:
+                    vss,element,key = tag.split(".")
+                except:
+                    continue
                 self._logger.debug("Reverting: %s to %s" % (tag, repr(value)))
                 if key in dir(ui._state._state[element]):
                     if key in self._tweaks:
@@ -498,16 +505,7 @@ class Tweak_View(plugins.Plugin):
                 # merge new tweaks
                 for i in self._tweaks:
                     self._tweaks[i] = tweaks[i]
-                    self._logger.debug ("Ready tweak %s -> %s" % (i, self._tweaks[i]))
-
-                if 'D.rotation' in self._tweaks:
-                    self.rotate_screen(self._tweaks['D.rotation'])
-                if 'D.bgcolor' in self._tweaks:
-                    if self._ui:
-                        self.set_background(self._tweaks['D.bgcolor'])
-                if 'D.fgcolor' in self._tweaks:
-                    if self._ui:
-                        self.set_foreground(self._tweaks['D.fgcolor'])
+                    self._logger.warn ("Ready tweak %s -> %s" % (i, self._tweaks[i]))
 
             # reset so everything gets moved next update
             self._already_updated = []
@@ -599,6 +597,13 @@ class Tweak_View(plugins.Plugin):
             self._already_updated = []
             self._logger.info("Tweak view ready.")
 
+            if 'D.rotation' in self._tweaks:
+                self.rotate_screen(self._tweaks['D.rotation'])
+            if 'D.bgcolor' in self._tweaks:
+                self.set_background(self._tweaks['D.bgcolor'])
+            if 'D.fgcolor' in self._tweaks:
+                self.set_foreground(self._tweaks['D.fgcolor'])
+
         except Exception as err:
             self._logger.warn("TweakUI loading failed: %s" % repr(err))
 
@@ -617,10 +622,12 @@ class Tweak_View(plugins.Plugin):
             # go through list of tweaks
             updated = []
             for tag, value in self._tweaks.items():
-                if not tag.startswith('VSS.'):
-                    continue
                 try:
-                    vss,element,key = tag.split(".")
+                    try:
+                        vss,element,key = tag.split(".")
+                    except:
+                        logging.warn("Skipping %s" % d)
+                        continue
                     if element not in self._already_updated and element in state and key in dir(state[element]):
                         if tag not in self._untweak:
                             #self._untweak[tag] = eval("ui._state._state[element].%s" % key)
