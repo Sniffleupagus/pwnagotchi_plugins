@@ -430,6 +430,8 @@ class auto_tune(plugins.Plugin):
             self._agent._history = {}  # clear "max_interactions" data
             self._agent.run("wifi.recon clear")
             self._agent.run("wifi.clear")
+            channels = agent._config['personality'].get('channels', [1,6,11])
+            self._agent.run("wifi.recon.channel %s" % (','.join(map(str,channels))))
         if agent._config.get('ai', {}).get('enabled', False):
             logging.info("Auto_Tune is inactive when AI is enabled.")
         else:
