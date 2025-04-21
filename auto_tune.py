@@ -111,7 +111,7 @@ class auto_tune(plugins.Plugin):
         self._histogram = {'loops': 0 } # count APs per epoch
 
         self._chistos = { '_all_actions' : { -1:0 } }  # arbitrary session stats per channel
-
+        self._athome = False
         # plugin data
         self.ep_data = {}
         self.last_shake = {'time': time.time()}
@@ -430,6 +430,8 @@ class auto_tune(plugins.Plugin):
             self._agent._history = {}  # clear "max_interactions" data
             self._agent.run("wifi.recon clear")
             self._agent.run("wifi.clear")
+            channels = agent._config['personality'].get('channels', [1,6,11])
+            self._agent.run("wifi.recon.channel %s" % (','.join(map(str,channels))))
         if agent._config.get('ai', {}).get('enabled', False):
             logging.info("Auto_Tune is inactive when AI is enabled.")
         else:
@@ -456,6 +458,10 @@ class auto_tune(plugins.Plugin):
             if self._orig_mode != 'MANU':
                 stats = self._chistos
                 mode = 'E%4s|%2ds' % (self.ep_data.get('epoch', 'ST'), int(self.ep_data.get('duration_secs', 0)))
+
+                if self._athome:
+                    mode = mode.lower()
+                
                 ui.set('mode', mode)
 
                 if self._agent and self._agent._last_pwnd:
@@ -508,8 +514,39 @@ class auto_tune(plugins.Plugin):
 
     # called when the agent refreshed an unfiltered access point list
     # this list contains all access points that were detected BEFORE filtering
-    #def on_unfiltered_ap_list(self, agent, access_points):
-    #    pass
+    def on_unfiltered_ap_list(self, agent, access_points):
+        oh_behave = False
+        home_list = self.options.get('home_list', None)
+        if home_list:
+            for ap in access_points:
+                if ap.get('hostname', '[no hostname]') in home_list:
+                    oh_behave = True
+                    if self._athome == False:
+                        logging.info("%s visible: behaving" % ap.get('hostname', '[unknown]'))
+                    elif ap.get('mac', '[no hostname]').lower() in home_list:
+                        oh_behave = True
+
+            home_plugins = [ '-wardriver', 'pwncrack', '-instattack' ]
+            away_plugins = [ 'wardriver', '-pwncrack', 'instattack' ]
+
+            def toggle_plugins(plugs):
+                try:
+                    for p in plugs:
+                        if p.startswith('-'):
+                            plugins.toggle_plugin(p[1:], False)
+                        else:
+                            plugins.toggle_plugin(p, True)
+                except Exception as e:
+                    logging.exception(e)
+
+            if oh_behave and not self._athome:
+                logging.info("switching to HOME")
+                self._athome = True
+                toggle_plugins(home_plugins)
+            elif self._athome and not oh_behave:
+                logging.info("switching to AWAY")
+                self._athome = False
+                toggle_plugins(away_plugins)
 
     # called when an epoch is over (where an epoch is a single loop of the main algorithm)
     def on_epoch(self, agent, epoch, epoch_data):
@@ -519,6 +556,19 @@ class auto_tune(plugins.Plugin):
 
         self.ep_data = epoch_data
         self.ep_data['epoch'] = epoch
+
+        if not self._athome:
+            factor =  epoch_data['inactive_for_epochs'] / agent._config['personality']['sad_num_epochs']
+            if factor > 5:
+                logging.warn("RESTARTING due to sadness")
+                os.system("touch /root/.pwnagotchi-auto")
+                os.system("service bettercap restart")
+
+            if (time.time() - self.last_shake.get('time')) > 30 * 60:
+                logging.warn("RESTARTING due to handshake timeout")
+                agent._save_recovery_data()
+                os.system("touch /root/.pwnagotchi-auto")
+                os.system("service pwnagotchi restart")
 
         try:
             next_channels = self._active_channels.copy()
