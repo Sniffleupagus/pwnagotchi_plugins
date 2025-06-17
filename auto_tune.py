@@ -496,6 +496,9 @@ class auto_tune(plugins.Plugin):
             for ap in access_points:
                 self.markAPSeen(ap, 'wifi_update')
                 ch = ap['channel']
+                if ch < 0:
+                    logging.warn("Invalid AP channel %d: %s" % (ch, ap))
+                    continue
                 logging.debug("%s %d" % (ap['hostname'], ch))
                 if ch not in active_channels:
                     active_channels.append(ch)
