@@ -16,7 +16,7 @@ from flask import render_template_string
 
 class auto_tune(plugins.Plugin):
     __author__ = 'Sniffleupagus'
-    __version__ = '1.0.4'
+    __version__ = '1.0.5'
     __license__ = 'GPL3'
     __description__ = 'A plugin that adjust AUTO mode parameters'
 
