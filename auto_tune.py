@@ -3,6 +3,7 @@ import random
 import time
 import html
 import os
+import json
 
 import pwnagotchi.plugins as plugins
 from pwnagotchi.ui.components import LabeledValue
@@ -16,7 +17,7 @@ from flask import render_template_string
 
 class auto_tune(plugins.Plugin):
     __author__ = 'Sniffleupagus'
-    __version__ = '1.0.5'
+    __version__ = '1.0.6'
     __license__ = 'GPL3'
     __description__ = 'A plugin that adjust AUTO mode parameters'
 
@@ -141,6 +142,8 @@ class auto_tune(plugins.Plugin):
             "ap_ttl" : "APs that have not been seen since this many seconds are ignored. Shorten this if you are moving, to not try to scan APs that are no longer in range.",
             "sta_ttl" : "Clients older than this will ignored",
         }
+        self.presets_dir = os.path.expanduser("~/auto-tune-presets")
+        self._ensure_presets_dir()
 
 
     def showEditForm(self, request):
@@ -148,6 +151,25 @@ class auto_tune(plugins.Plugin):
 
         ret = '<form method=post action="%s">' % path
         ret += '<input id="csrf_token" name="csrf_token" type="hidden" value="{{ csrf_token() }}">'
+
+        # Add presets section
+        ret += '<div class="preset-section">'
+        ret += '<h2>Presets! (Use "update" below before saving and after loading.)</h2>'
+        ret += '<table class="preset-table">'
+        ret += '<tr><td style="width: 150px;">Preset Name:</td><td><input type="text" name="preset_name" size="30" placeholder="Enter preset name"></td></tr>'
+        ret += '<tr><td>Available Presets:</td><td>'
+        ret += '<select name="selected_preset" size="1" style="width: 200px;">'
+        ret += '<option value="">Select a preset...</option>'
+        for preset in self._get_preset_files():
+            ret += '<option value="%s">%s</option>' % (preset, preset)
+        ret += '</select></td></tr>'
+        ret += '<tr><td colspan="2" class="preset-buttons">'
+        ret += '<input type="submit" name="save_preset" value="Save Preset" onclick="return validatePresetName();"> '
+        ret += '<input type="submit" name="load_preset" value="Load Preset" onclick="return validatePresetSelection();"> '
+        ret += '<input type="submit" name="delete_preset" value="Delete Preset" onclick="return validatePresetSelection() && confirm(\'Are you sure you want to delete this preset?\');">'
+        ret += '</td></tr>'
+        ret += '</table>'
+        ret += '</div><hr>'
 
         form_data = request.values.items()
 
@@ -347,6 +369,33 @@ class auto_tune(plugins.Plugin):
                 if path == "/" or not path:
                     logging.debug("webhook called")
                     ret = '<html><head><title>AUTO Tune</title><meta name="csrf_token" content="{{ csrf_token() }}"></head>'
+                    ret += '<style>'
+                    ret += '.preset-section { background-color: #f0f0f0; padding: 10px; margin: 10px 0; border-radius: 5px; }'
+                    ret += '.preset-table { width: 100%; }'
+                    ret += '.preset-table td { padding: 5px; }'
+                    ret += '.preset-buttons { margin-top: 10px; }'
+                    ret += '.preset-buttons input { margin-right: 10px; padding: 5px 10px; }'
+                    ret += '.success { color: green; font-weight: bold; padding: 10px; background-color: #d4edda; border: 1px solid #c3e6cb; border-radius: 3px; }'
+                    ret += '.error { color: red; font-weight: bold; padding: 10px; background-color: #f8d7da; border: 1px solid #f5c6cb; border-radius: 3px; }'
+                    ret += '</style>'
+                    ret += '<script>'
+                    ret += 'function validatePresetName() {'
+                    ret += '  var presetName = document.getElementsByName("preset_name")[0].value.trim();'
+                    ret += '  if (presetName === "") {'
+                    ret += '    alert("Please enter a preset name");'
+                    ret += '    return false;'
+                    ret += '  }'
+                    ret += '  return true;'
+                    ret += '}'
+                    ret += 'function validatePresetSelection() {'
+                    ret += '  var selectedPreset = document.getElementsByName("selected_preset")[0].value;'
+                    ret += '  if (selectedPreset === "") {'
+                    ret += '    alert("Please select a preset");'
+                    ret += '    return false;'
+                    ret += '  }'
+                    ret += '  return true;'
+                    ret += '}'
+                    ret += '</script>'
                     ret += "<body><h1>AUTO Tune</h1><p>"
                     ret += self.showEditForm(request)
 
@@ -359,9 +408,44 @@ class auto_tune(plugins.Plugin):
                 # other paths here
             elif request.method == "POST":
                 ret = '<html><head><title>AUTO Tune</title><meta name="csrf_token" content="{{ csrf_token() }}"></head>'
-                if path == "update": # update settings that changed, save to json file
+                if path == "update":  # update settings that changed, save to json file
                     ret = '<html><head><title>AUTO Tune Update!</title><meta name="csrf_token" content="{{ csrf_token() }}"></head>'
                     ret += "<body><h1>AUTO Tune Update</h1>"
+                    
+                    # Handle preset operations
+                    if 'save_preset' in request.values and 'preset_name' in request.values:
+                        preset_name = request.values['preset_name'].strip()
+                        if preset_name:
+                            try:
+                                self._save_preset(preset_name)
+                                ret += "<div class='success'>Preset '%s' saved successfully!</div>" % preset_name
+                            except Exception as e:
+                                ret += "<div class='error'>Error saving preset: %s</div>" % str(e)
+                        else:
+                            ret += "<div class='error'>Please enter a preset name</div>"
+                    
+                    elif 'load_preset' in request.values and 'selected_preset' in request.values:
+                        preset_name = request.values['selected_preset']
+                        if preset_name:
+                            success, message = self._load_preset(preset_name)
+                            if success:
+                                ret += "<div class='success'>%s</div>" % message
+                                save_config(self._agent._config, "/etc/pwnagotchi/config.toml")
+                            else:
+                                ret += "<div class='error'>%s</div>" % message
+                        else:
+                            ret += "<div class='error'>Please select a preset to load</div>"
+                    
+                    elif 'delete_preset' in request.values and 'selected_preset' in request.values:
+                        preset_name = request.values['selected_preset']
+                        if preset_name:
+                            if self._delete_preset(preset_name):
+                                ret += "<div class='success'>Preset '%s' deleted successfully!</div>" % preset_name
+                            else:
+                                ret += "<div class='error'>Error deleting preset '%s'</div>" % preset_name
+                        else:
+                            ret += "<div class='error'>Please select a preset to delete</div>"
+                    
                     ret += "<h2>Processing changes</h2><ul>"
                     changed = False
                     for (key, val) in request.values.items():
