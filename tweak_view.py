@@ -1,14 +1,12 @@
 import logging
 import os, time, sys
-import html
 import json
 
 import pwnagotchi.plugins as plugins
 from pwnagotchi.ui.components import *
 from pwnagotchi.ui.view import BLACK
-from PIL import ImageFont, ImageDraw
+from PIL import ImageFont
 import pwnagotchi.ui.fonts as fonts
-import pwnagotchi.utils as utils
 
 try:
     sys.path.append(os.path.dirname(__file__))
@@ -105,9 +103,6 @@ class Tweak_View(plugins.Plugin):
         """Parse 'x0,y0' or 'x0,y0,x1,y1' into a list of ints."""
         return [int(float(v.strip())) for v in str(value).split(",")]
 
-    def _xy_str(self, xy_list):
-        return ",".join(str(v) for v in xy_list)
-
     def get_ui_state(self):
         """Get current UI state as JSON for AJAX requests."""
         if not self._agent:
@@ -173,13 +168,7 @@ class Tweak_View(plugins.Plugin):
 
         return state
 
-    def get_ui_dimensions(self):
-        try:
-            if self._ui:
-                return {"width": self._ui.width(), "height": self._ui.height()}
-        except Exception:
-            pass
-        return {"width": 250, "height": 122}
+    # get_ui_dimensions removed (not used) to trim unused helpers
 
     def _add_shape_to_view(self, name, shape_type, props):
         """Add or update a custom shape widget in the view state."""
@@ -226,19 +215,41 @@ class Tweak_View(plugins.Plugin):
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body { font-family: var(--font-mono); background: var(--bg); color: var(--text);
                height: 100dvh; overflow: hidden; display: flex; flex-direction: column; }
-        .topbar { display: flex; align-items: center; justify-content: space-between;
-                  padding: 0 16px; height: 48px; background: var(--panel);
-                  border-bottom: 1px solid var(--accent); flex-shrink: 0; gap: 8px;
-                  position: relative; z-index: 200; }
-        .topbar-title { font-family: var(--font-ui); font-weight: 800; font-size: 15px;
-                        color: var(--accent); letter-spacing: 2px; text-transform: uppercase;
-                        white-space: nowrap; flex-shrink: 0; }
+
+        /* ══════════════════════════════════════════
+           TOPBAR  (shared desktop + mobile)
+        ══════════════════════════════════════════ */
+        .topbar {
+            display: flex; align-items: center;
+            padding: 0 10px; height: 48px; background: var(--panel);
+            border-bottom: 1px solid var(--accent); flex-shrink: 0;
+            position: relative; z-index: 200; gap: 8px;
+        }
+        .topbar-title {
+            font-family: var(--font-ui); font-weight: 800; font-size: 15px;
+            color: var(--accent); letter-spacing: 2px; text-transform: uppercase;
+            white-space: nowrap; flex-shrink: 0;
+        }
         .topbar-title span { color: var(--accent2); }
-        .topbar-actions { display: flex; gap: 6px; align-items: center; flex-wrap: nowrap; }
+        .statsbar {
+            display: flex; gap: 12px; align-items: center;
+            flex: 1; min-width: 0; overflow: hidden; padding: 0 6px;
+        }
+        .stat { font-size: 11px; color: var(--text-dim); white-space: nowrap; }
+        .stat span { color: var(--accent); font-weight: bold; }
+        .topbar-actions { display: flex; gap: 5px; align-items: center; flex-shrink: 0; }
+
+        /* ══════════════════════════════════════════
+           DESKTOP LAYOUT  (side-by-side)
+        ══════════════════════════════════════════ */
         .layout { display: flex; flex: 1; overflow: hidden; }
-        .sidebar { width: 220px; flex-shrink: 0; background: var(--panel);
-                   border-right: 1px solid var(--border); display: flex;
-                   flex-direction: column; overflow: hidden; transition: transform 0.25s ease; }
+
+        /* sidebar */
+        .sidebar {
+            width: 220px; flex-shrink: 0; background: var(--panel);
+            border-right: 1px solid var(--border);
+            display: flex; flex-direction: column; overflow: hidden;
+        }
         .sidebar-header { padding: 10px 12px 8px; border-bottom: 1px solid var(--border); }
         .search-box { width: 100%; background: var(--bg); border: 1px solid var(--muted);
                       color: var(--text); font-family: var(--font-mono); font-size: 12px;
@@ -264,11 +275,16 @@ class Tweak_View(plugins.Plugin):
         .modified-badge { display: inline-block; background: var(--warn); color: #000;
                           font-size: 9px; padding: 1px 4px; border-radius: 2px; margin-left: 4px;
                           font-family: var(--font-ui); font-weight: 700; }
+        .section-label { font-size: 9px; color: var(--text-dim); text-transform: uppercase;
+                         letter-spacing: 1px; padding: 4px 10px 2px;
+                         border-top: 1px solid var(--border); margin-top: 4px; }
+
+        /* center preview */
         .center { flex: 1; display: flex; flex-direction: column; overflow: hidden; position: relative; }
         .preview-wrap { flex: 1; display: flex; align-items: center; justify-content: center;
-                        padding: 20px; background:
-                            repeating-linear-gradient(0deg, transparent, transparent 19px, rgba(0,229,255,0.04) 20px),
-                            repeating-linear-gradient(90deg, transparent, transparent 19px, rgba(0,229,255,0.04) 20px);
+                        padding: 20px;
+                        background: repeating-linear-gradient(0deg, transparent, transparent 19px, rgba(0,229,255,0.04) 20px),
+                                    repeating-linear-gradient(90deg, transparent, transparent 19px, rgba(0,229,255,0.04) 20px);
                         position: relative; overflow: auto; }
         .preview-frame { position: relative; display: inline-block; border: 1px solid var(--accent);
                          box-shadow: 0 0 24px rgba(0,229,255,0.15), inset 0 0 8px rgba(0,0,0,0.5);
@@ -280,9 +296,11 @@ class Tweak_View(plugins.Plugin):
         .pulse { width: 6px; height: 6px; border-radius: 50%; background: var(--accent2);
                  animation: pulse 2s ease-in-out infinite; }
         @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.2; } }
+
+        /* props panel */
         .props-panel { width: 280px; flex-shrink: 0; background: var(--panel);
-                       border-left: 1px solid var(--border); display: flex;
-                       flex-direction: column; overflow: hidden; }
+                       border-left: 1px solid var(--border);
+                       display: flex; flex-direction: column; overflow: hidden; }
         .props-header { padding: 12px 14px; border-bottom: 1px solid var(--border);
                         font-size: 11px; color: var(--text-dim); text-transform: uppercase; letter-spacing: 1px; }
         .props-header .el-label { font-family: var(--font-ui); font-weight: 600; font-size: 14px;
@@ -290,6 +308,10 @@ class Tweak_View(plugins.Plugin):
         .props-body { flex: 1; overflow-y: auto; padding: 12px; }
         .props-body::-webkit-scrollbar { width: 4px; }
         .props-body::-webkit-scrollbar-thumb { background: var(--muted); border-radius: 2px; }
+        .props-footer { padding: 10px 12px; border-top: 1px solid var(--border);
+                        display: flex; gap: 6px; flex-wrap: wrap; }
+
+        /* shared prop widgets */
         .prop-row { margin-bottom: 12px; }
         .prop-label { font-size: 10px; color: var(--text-dim); text-transform: uppercase;
                       letter-spacing: 1px; margin-bottom: 4px; }
@@ -306,6 +328,8 @@ class Tweak_View(plugins.Plugin):
                      cursor: pointer; transition: all 0.15s; text-align: center; }
         .nudge-btn:hover { border-color: var(--accent); color: var(--accent); }
         .nudge-btn:active { background: var(--accent); color: #000; }
+
+        /* shared buttons */
         .btn { font-family: var(--font-mono); font-size: 12px; padding: 7px 14px;
                border: 1px solid var(--muted); border-radius: 3px; cursor: pointer;
                transition: all 0.15s; white-space: nowrap; background: transparent; color: var(--text); }
@@ -320,40 +344,20 @@ class Tweak_View(plugins.Plugin):
         .btn-danger { border-color: var(--danger); color: var(--danger); }
         .btn-danger:hover { background: var(--danger); color: #fff; }
         .btn-sm { font-size: 11px; padding: 5px 10px; }
-        .props-footer { padding: 10px 12px; border-top: 1px solid var(--border);
-                        display: flex; gap: 6px; flex-wrap: wrap; }
-        .statsbar { display: flex; gap: 16px; padding: 0 12px; align-items: center; }
-        .stat { font-size: 11px; color: var(--text-dim); }
-        .stat span { color: var(--accent); font-weight: bold; }
+
+        /* toasts */
         #toast-container { position: fixed; bottom: 20px; right: 20px; display: flex;
                            flex-direction: column; gap: 8px; z-index: 9999; }
         .toast { font-family: var(--font-mono); font-size: 12px; padding: 10px 16px; border-radius: 3px;
                  border: 1px solid var(--accent); background: var(--panel); color: var(--accent);
                  animation: toastIn 0.25s ease, toastOut 0.3s ease 2.7s forwards;
-                 min-width: 200px; max-width: 320px; }
+                 min-width: 180px; max-width: 280px; }
         .toast.error { border-color: var(--danger); color: var(--danger); }
-        .toast.warn { border-color: var(--warn); color: var(--warn); }
-        @keyframes toastIn { from { opacity: 0; transform: translateX(20px); } to { opacity: 1; transform: translateX(0); } }
-        @keyframes toastOut { from { opacity: 1; } to { opacity: 0; pointer-events: none; } }
-        @media (max-width: 900px) {
-            .sidebar, .props-panel { position: fixed; top: 48px; bottom: 0; z-index: 500; transition: transform 0.25s ease; }
-            .sidebar { left: 0; width: 80vw; max-width: 300px; transform: translateX(-110%); border-right: 1px solid var(--accent); }
-            .sidebar.open { transform: translateX(0); }
-            .props-panel { right: 0; width: 80vw; max-width: 300px; transform: translateX(110%); border-left: 1px solid var(--accent); }
-            .props-panel.open { transform: translateX(0); }
-            .scrim { display: block !important; }
-        }
-        .scrim { display: none; position: fixed; inset: 0; top: 48px; background: rgba(0,0,0,0.6); z-index: 499; }
-        .loading-msg { color: var(--text-dim); font-size: 12px; padding: 20px; text-align: center; }
-        .toggle-label { font-size: 11px; color: var(--text-dim); display: flex; align-items: center;
-                        gap: 6px; cursor: pointer; user-select: none; }
-        .toggle-box { width: 30px; height: 16px; border: 1px solid var(--muted); border-radius: 8px;
-                      position: relative; background: var(--bg); transition: all 0.2s; flex-shrink: 0; }
-        .toggle-box::after { content: ''; position: absolute; width: 10px; height: 10px; border-radius: 50%;
-                             background: var(--muted); top: 2px; left: 2px; transition: all 0.2s; }
-        .toggle-input { display: none; }
-        .toggle-input:checked + .toggle-box { border-color: var(--accent2); background: rgba(57,255,20,0.1); }
-        .toggle-input:checked + .toggle-box::after { background: var(--accent2); left: 16px; }
+        .toast.warn  { border-color: var(--warn);   color: var(--warn); }
+        @keyframes toastIn  { from { opacity:0; transform:translateX(20px); } to { opacity:1; transform:translateX(0); } }
+        @keyframes toastOut { from { opacity:1; } to { opacity:0; pointer-events:none; } }
+
+        /* import overlay */
         #import-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.8);
                           z-index: 9000; align-items: center; justify-content: center; }
         #import-overlay.open { display: flex; }
@@ -365,12 +369,126 @@ class Tweak_View(plugins.Plugin):
                            border-radius: 3px; resize: vertical; outline: none; }
         #import-textarea:focus { border-color: var(--accent); }
         .import-actions { display: flex; gap: 8px; margin-top: 10px; justify-content: flex-end; }
-        .section-label { font-size: 9px; color: var(--text-dim); text-transform: uppercase; letter-spacing: 1px;
-                         padding: 4px 10px 2px; border-top: 1px solid var(--border); margin-top: 4px; }
+
+        /* loading */
+        .loading-msg { color: var(--text-dim); font-size: 12px; padding: 20px; text-align: center; }
+
+        /* toggle */
+        .toggle-label { font-size: 11px; color: var(--text-dim); display: flex; align-items: center;
+                        gap: 6px; cursor: pointer; user-select: none; }
+        .toggle-box { width: 30px; height: 16px; border: 1px solid var(--muted); border-radius: 8px;
+                      position: relative; background: var(--bg); transition: all 0.2s; flex-shrink: 0; }
+        .toggle-box::after { content: ''; position: absolute; width: 10px; height: 10px; border-radius: 50%;
+                             background: var(--muted); top: 2px; left: 2px; transition: all 0.2s; }
+        .toggle-input { display: none; }
+        .toggle-input:checked + .toggle-box { border-color: var(--accent2); background: rgba(57,255,20,0.1); }
+        .toggle-input:checked + .toggle-box::after { background: var(--accent2); left: 16px; }
+
+        /* overflow menu */
+        .overflow-menu-wrap { position: relative; }
+        #overflow-menu { display: none; position: absolute; top: calc(100% + 4px); right: 0;
+                         background: var(--panel); border: 1px solid var(--accent);
+                         border-radius: 4px; min-width: 160px; z-index: 700;
+                         box-shadow: 0 8px 24px rgba(0,0,0,0.6); }
+        #overflow-menu.open { display: block; }
+        .overflow-item { display: block; width: 100%; text-align: left; padding: 10px 14px;
+                         font-family: var(--font-mono); font-size: 12px; color: var(--text);
+                         background: transparent; border: none; border-bottom: 1px solid var(--border);
+                         cursor: pointer; transition: background 0.12s; }
+        .overflow-item:last-child { border-bottom: none; }
+        .overflow-item:hover { background: rgba(0,229,255,0.08); color: var(--accent); }
+        .overflow-item.danger { color: var(--danger); }
+        .overflow-item.danger:hover { background: rgba(255,34,85,0.1); }
+
+        /* ══════════════════════════════════════════
+           MOBILE LAYOUT  (≤ 900 px)
+           Structure:
+             topbar  (48px, clean)
+             preview-banner  (full width, fixed height)
+             tab-bar  (Elements | Properties)
+             tab-content  (scrollable)
+        ══════════════════════════════════════════ */
+        @media (max-width: 900px) {
+
+            /* — Topbar: hide stats + desktop-only buttons — */
+            .statsbar { display: none; }
+            .desktop-only { display: none !important; }
+            .topbar { padding: 0 8px; gap: 6px; }
+            .topbar-title { font-size: 13px; letter-spacing: 1px; }
+
+            /* — Kill the desktop side-by-side layout — */
+            .layout { flex-direction: column; overflow: hidden; }
+
+            /* — Sidebar + props panel become hidden; content is shown in tabs instead — */
+            .sidebar, .props-panel { display: none !important; }
+
+            /* — Preview banner: full width, fixed proportion — */
+            .mobile-preview {
+                display: flex !important;
+                align-items: center; justify-content: center;
+                width: 100%; padding: 10px 12px;
+                background: repeating-linear-gradient(0deg, transparent, transparent 19px, rgba(0,229,255,0.04) 20px),
+                            repeating-linear-gradient(90deg, transparent, transparent 19px, rgba(0,229,255,0.04) 20px);
+                border-bottom: 1px solid var(--border);
+                position: relative; flex-shrink: 0;
+            }
+            .mobile-preview .preview-frame { border: 1px solid var(--accent);
+                box-shadow: 0 0 16px rgba(0,229,255,0.18); border-radius: 2px; }
+            #mobile-preview-img { display: block; image-rendering: pixelated; image-rendering: crisp-edges; }
+            #mobile-overlay-canvas { position: absolute; top: 0; left: 0; pointer-events: none; }
+            .mobile-preview-status { position: absolute; bottom: 4px; right: 8px; font-size: 9px;
+                                     color: var(--text-dim); display: flex; align-items: center; gap: 4px; }
+
+            /* — Tab bar — */
+            .mobile-tabs {
+                display: flex !important;
+                border-bottom: 1px solid var(--border); flex-shrink: 0;
+            }
+            .mobile-tab {
+                flex: 1; padding: 10px 6px; text-align: center;
+                font-family: var(--font-mono); font-size: 12px; color: var(--text-dim);
+                background: var(--panel); border: none; cursor: pointer;
+                border-bottom: 2px solid transparent; transition: all 0.15s;
+            }
+            .mobile-tab.active { color: var(--accent); border-bottom-color: var(--accent);
+                                  background: rgba(0,229,255,0.05); }
+            .mobile-tab .tab-badge { display: inline-block; background: var(--warn); color: #000;
+                                     font-size: 9px; padding: 0 4px; border-radius: 2px;
+                                     margin-left: 4px; font-family: var(--font-ui); font-weight: 700; }
+
+            /* — Tab content panels — */
+            .mobile-tab-content { flex: 1; overflow: hidden; display: flex; flex-direction: column; }
+            .mobile-pane { display: none; flex: 1; flex-direction: column; overflow: hidden; }
+            .mobile-pane.active { display: flex; }
+
+            /* Elements pane */
+            .mobile-el-header { padding: 8px 10px; border-bottom: 1px solid var(--border); display: flex; gap: 6px; }
+            .mobile-el-header .search-box { margin-bottom: 0; flex: 1; font-size: 13px; padding: 8px 10px; }
+            .mobile-el-header .add-shape-row { flex-shrink: 0; gap: 4px; display: flex; align-items: center; }
+            .mobile-el-list { flex: 1; overflow-y: auto; list-style: none; padding: 6px; }
+            .mobile-el-list .element-item { padding: 10px 12px; font-size: 13px; }
+            .mobile-el-list .element-item .el-type { font-size: 11px; }
+
+            /* Props pane */
+            .mobile-props-body { flex: 1; overflow-y: auto; padding: 12px; }
+            .mobile-props-footer { padding: 10px 12px; border-top: 1px solid var(--border);
+                                   display: flex; gap: 8px; flex-wrap: wrap; flex-shrink: 0; }
+            .mobile-props-footer .btn-sm { font-size: 13px; padding: 9px 14px; flex: 1; text-align: center; }
+
+            /* Bigger touch targets for nudge buttons on mobile */
+            .nudge-btn { padding: 10px 0; font-size: 13px; }
+            .prop-input { font-size: 14px; padding: 8px 10px; }
+            .prop-label { font-size: 11px; }
+        }
+
+        /* Elements hidden on desktop (shown only mobile) */
+        .mobile-preview, .mobile-tabs, .mobile-tab-content { display: none; }
+        /* Scrim only used on desktop now (for nothing — kept for future) */
+        .scrim { display: none; }
     </style>
 </head>
 <body>
-<div class="scrim" id="scrim" onclick="closeAllPanels()"></div>
+
 <div id="import-overlay">
     <div class="import-box">
         <h3>// IMPORT CONFIG</h3>
@@ -383,47 +501,125 @@ class Tweak_View(plugins.Plugin):
     </div>
 </div>
 
+<!-- ═══════════════════ TOPBAR ═══════════════════ -->
 <div class="topbar">
-    <div style="display:flex;align-items:center;gap:10px;min-width:0;">
-        <button class="btn btn-sm" id="sidebar-toggle" onclick="toggleSidebar()" style="display:none;padding:5px 10px;font-size:14px;">☰</button>
-        <div class="topbar-title">tweak<span>_view</span></div>
-    </div>
-    <div class="statsbar" id="statsbar">
+    <div class="topbar-title">tweak<span>_view</span></div>
+
+    <!-- Desktop stats -->
+    <div class="statsbar desktop-only">
         <div class="stat">elements: <span id="stat-total">0</span></div>
         <div class="stat">modified: <span id="stat-mod">0</span></div>
     </div>
+
     <div class="topbar-actions">
-        <label class="toggle-label">
+        <!-- Desktop: auto-refresh toggle -->
+        <label class="toggle-label desktop-only">
             <input type="checkbox" class="toggle-input" id="auto-refresh" checked>
             <div class="toggle-box"></div>
-            <span style="display:none;" id="ar-label">auto</span>
+            <span>auto</span>
         </label>
-        <button class="btn btn-sm btn-primary" onclick="refreshPreview()">↺ refresh</button>
-        <button class="btn btn-sm" onclick="exportConfig()">↓ export</button>
-        <button class="btn btn-sm" onclick="openImport()">↑ import</button>
-        <button class="btn btn-sm btn-danger" onclick="resetAll()">✕ reset</button>
-        <button class="btn btn-sm" id="props-toggle" onclick="toggleProps()" style="display:none;">⚙ props</button>
+
+        <button class="btn btn-sm btn-primary" onclick="refreshAll()">↺</button>
+
+        <!-- Desktop-only secondary buttons -->
+        <button class="btn btn-sm desktop-only" onclick="exportConfig()">↓ export</button>
+        <button class="btn btn-sm desktop-only" onclick="openImport()">↑ import</button>
+        <button class="btn btn-sm btn-danger desktop-only" onclick="resetAll()">✕ reset</button>
+
+        <!-- Mobile overflow ⋯ -->
+        <div class="overflow-menu-wrap" id="overflow-wrap" style="display:none;">
+            <button class="btn btn-sm" onclick="toggleOverflow()" style="padding:5px 10px;font-size:15px;letter-spacing:2px;">⋯</button>
+            <div id="overflow-menu">
+                <button class="overflow-item" onclick="toggleAutoRefreshMenu()"><span id="ar-menu-label">⏸ pause auto-refresh</span></button>
+                <button class="overflow-item" onclick="exportConfig();closeOverflow()">↓ export</button>
+                <button class="overflow-item" onclick="openImport();closeOverflow()">↑ import</button>
+                <button class="overflow-item danger" onclick="resetAll();closeOverflow()">✕ reset all</button>
+            </div>
+        </div>
     </div>
 </div>
 
-<div class="layout">
-    <div class="sidebar" id="sidebar">
-        <div class="sidebar-header">
+<!-- ═══════════════════ MOBILE: PREVIEW BANNER ═══════════════════ -->
+<div class="mobile-preview" id="mobile-preview-wrap">
+    <div class="preview-frame" id="mobile-preview-frame">
+        <img id="mobile-preview-img" src="/ui?t=0" alt="pwnagotchi UI">
+        <canvas id="mobile-overlay-canvas"></canvas>
+    </div>
+    <div class="mobile-preview-status">
+        <div class="pulse"></div>
+        <span id="mobile-last-refresh">--</span>
+    </div>
+</div>
+
+<!-- ═══════════════════ MOBILE: TAB BAR ═══════════════════ -->
+<div class="mobile-tabs" id="mobile-tabs">
+    <button class="mobile-tab active" id="tab-elements" onclick="switchTab('elements')">
+        ☰ Elements <span class="tab-badge" id="tab-el-badge" style="display:none"></span>
+    </button>
+    <button class="mobile-tab" id="tab-props" onclick="switchTab('props')">
+        ⚙ Properties <span class="tab-badge" id="tab-mod-badge" style="display:none"></span>
+    </button>
+</div>
+
+<!-- ═══════════════════ MOBILE: TAB CONTENT ═══════════════════ -->
+<div class="mobile-tab-content" id="mobile-tab-content">
+
+    <!-- Elements pane -->
+    <div class="mobile-pane active" id="pane-elements">
+        <div class="mobile-el-header">
             <input type="text" class="search-box" id="search" placeholder="filter elements...">
             <div class="add-shape-row">
-                <select id="new-shape-type">
+                <select id="new-shape-type" style="background:var(--bg);border:1px solid var(--muted);color:var(--text);font-family:var(--font-mono);font-size:11px;padding:6px 4px;border-radius:3px;outline:none;">
                     <option value="CustomLine">Line</option>
-                    <option value="CustomRect">Rectangle</option>
+                    <option value="CustomRect">Rect</option>
                     <option value="CustomEllipse">Ellipse</option>
                 </select>
-                <button class="btn btn-sm btn-success" onclick="addShape()">+ add</button>
+                <button class="btn btn-sm btn-success" onclick="addShape()">+</button>
             </div>
         </div>
-        <ul class="element-list" id="el-list">
+        <ul class="mobile-el-list element-list" id="el-list">
             <li class="loading-msg">loading...</li>
         </ul>
     </div>
 
+    <!-- Properties pane -->
+    <div class="mobile-pane" id="pane-props">
+        <div class="props-header" style="flex-shrink:0;">
+            Properties
+            <div class="el-label" id="props-title">—</div>
+        </div>
+        <div class="mobile-props-body props-body" id="props-body">
+            <p class="loading-msg">select an element from the Elements tab</p>
+        </div>
+        <div class="mobile-props-footer" id="props-footer" style="display:none;">
+            <button class="btn btn-sm btn-success" onclick="applyChanges()">▶ apply</button>
+            <button class="btn btn-sm" onclick="revertElement()">↩ revert</button>
+            <button class="btn btn-sm btn-danger" id="delete-btn" onclick="deleteElement()" style="display:none;">✕ del</button>
+        </div>
+    </div>
+</div>
+
+<!-- ═══════════════════ DESKTOP LAYOUT ═══════════════════ -->
+<div class="layout" id="desktop-layout">
+    <!-- Sidebar -->
+    <div class="sidebar" id="sidebar">
+        <div class="sidebar-header">
+            <input type="text" class="search-box" id="search-desktop" placeholder="filter elements...">
+            <div class="add-shape-row">
+                <select id="new-shape-type-desktop">
+                    <option value="CustomLine">Line</option>
+                    <option value="CustomRect">Rectangle</option>
+                    <option value="CustomEllipse">Ellipse</option>
+                </select>
+                <button class="btn btn-sm btn-success" onclick="addShapeDesktop()">+ add</button>
+            </div>
+        </div>
+        <ul class="element-list" id="el-list-desktop">
+            <li class="loading-msg">loading...</li>
+        </ul>
+    </div>
+
+    <!-- Preview -->
     <div class="center">
         <div class="preview-wrap" id="preview-wrap">
             <div class="preview-frame" id="preview-frame">
@@ -437,55 +633,86 @@ class Tweak_View(plugins.Plugin):
         </div>
     </div>
 
+    <!-- Props panel -->
     <div class="props-panel" id="props-panel">
         <div class="props-header">
             Properties
-            <div class="el-label" id="props-title">—</div>
+            <div class="el-label" id="props-title-desktop">—</div>
         </div>
-        <div class="props-body" id="props-body">
+        <div class="props-body" id="props-body-desktop">
             <p class="loading-msg">select an element</p>
         </div>
-        <div class="props-footer" id="props-footer" style="display:none;">
+        <div class="props-footer" id="props-footer-desktop" style="display:none;">
             <button class="btn btn-sm btn-success" onclick="applyChanges()">▶ apply</button>
             <button class="btn btn-sm" onclick="revertElement()">↩ revert</button>
-            <button class="btn btn-sm btn-danger" id="delete-btn" onclick="deleteElement()" style="display:none;">✕ delete</button>
+            <button class="btn btn-sm btn-danger" id="delete-btn-desktop" onclick="deleteElement()" style="display:none;">✕ delete</button>
         </div>
     </div>
 </div>
 
 <div id="toast-container"></div>
+<div class="scrim" id="scrim"></div>
 
 <script>
 const CSRF = document.querySelector('meta[name="csrf_token"]').content;
 let uiState = {};
 let currentEl = null;
 let modifiedEls = new Set();
-let previewScale = 1;
 let refreshTimer = null;
+let autoRefreshOn = true;
 const FONT_LIST = ["Small","BoldSmall","Medium","Bold","BoldBig","Huge"];
-const SHAPE_TYPES = ["CustomLine","CustomRect","CustomEllipse"];
 
-// ── MOBILE ────────────────────────────────────────────────────────────────────
-function setupMobileNav() {
-    const mobile = window.innerWidth <= 900;
-    document.getElementById('sidebar-toggle').style.display = mobile ? 'block' : 'none';
-    document.getElementById('props-toggle').style.display = mobile ? 'block' : 'none';
-    document.getElementById('ar-label').style.display = mobile ? 'none' : 'inline';
+// ── TOAST NOTIFICATIONS ───────────────────────────────────────────────────────
+function toast(msg, type) {
+    const container = document.getElementById('toast-container');
+    if (!container) return;
+    const el = document.createElement('div');
+    el.className = 'toast' + (type ? ' ' + type : '');
+    el.textContent = msg;
+    container.appendChild(el);
+    setTimeout(() => el.remove(), 3000);
 }
-window.addEventListener('resize', setupMobileNav);
-setupMobileNav();
 
-function toggleSidebar() {
-    document.getElementById('sidebar').classList.toggle('open');
-    document.getElementById('props-panel').classList.remove('open');
+// ── RESPONSIVE SETUP ──────────────────────────────────────────────────────────
+function isMobile() { return window.innerWidth <= 900; }
+
+function applyLayout() {
+    const mobile = isMobile();
+    document.getElementById('overflow-wrap').style.display = mobile ? 'block' : 'none';
+    // desktop-layout is flex on desktop, hidden on mobile (CSS handles this via .sidebar display:none)
+    // but we also need the center to show on desktop
+    document.getElementById('desktop-layout').style.display = mobile ? 'none' : 'flex';
+    
+    document.getElementById('mobile-preview-wrap').style.display = mobile ? 'flex' : 'none';
+    document.getElementById('mobile-tabs').style.display = mobile ? 'flex' : 'none';
+    document.getElementById('mobile-tab-content').style.display = mobile ? 'flex' : 'none';
 }
-function toggleProps() {
-    document.getElementById('props-panel').classList.toggle('open');
-    document.getElementById('sidebar').classList.remove('open');
+window.addEventListener('resize', () => { applyLayout(); scalePreviewDesktop(); scaleMobilePreview(); });
+applyLayout();
+
+// ── MOBILE TABS ───────────────────────────────────────────────────────────────
+let activeTab = 'elements';
+function switchTab(tab) {
+    activeTab = tab;
+    document.querySelectorAll('.mobile-tab').forEach(t => t.classList.remove('active'));
+    document.querySelectorAll('.mobile-pane').forEach(p => p.classList.remove('active'));
+    document.getElementById('tab-' + tab).classList.add('active');
+    document.getElementById('pane-' + tab).classList.add('active');
 }
-function closeAllPanels() {
-    document.getElementById('sidebar').classList.remove('open');
-    document.getElementById('props-panel').classList.remove('open');
+
+// ── OVERFLOW MENU ─────────────────────────────────────────────────────────────
+function toggleOverflow() { document.getElementById('overflow-menu').classList.toggle('open'); }
+function closeOverflow()  { document.getElementById('overflow-menu').classList.remove('open'); }
+document.addEventListener('click', e => {
+    if (!document.getElementById('overflow-wrap').contains(e.target)) closeOverflow();
+});
+function toggleAutoRefreshMenu() {
+    autoRefreshOn = !autoRefreshOn;
+    document.getElementById('auto-refresh').checked = autoRefreshOn;
+    autoRefreshOn ? startAutoRefresh() : stopAutoRefresh();
+    document.getElementById('ar-menu-label').textContent = autoRefreshOn ? '⏸ pause auto-refresh' : '▶ resume auto-refresh';
+    toast('auto-refresh ' + (autoRefreshOn ? 'on' : 'off'));
+    closeOverflow();
 }
 
 // ── DATA ──────────────────────────────────────────────────────────────────────
@@ -501,65 +728,72 @@ async function fetchState() {
 }
 
 function updateStats() {
-    document.getElementById('stat-total').textContent = Object.keys(uiState).length;
-    document.getElementById('stat-mod').textContent = modifiedEls.size;
+    const total = Object.keys(uiState).length;
+    const mod = modifiedEls.size;
+    // Desktop
+    document.getElementById('stat-total').textContent = total;
+    document.getElementById('stat-mod').textContent = mod;
+    // Mobile tab badges
+    const elBadge = document.getElementById('tab-el-badge');
+    elBadge.textContent = total; elBadge.style.display = total ? 'inline-block' : 'none';
+    const modBadge = document.getElementById('tab-mod-badge');
+    modBadge.textContent = mod; modBadge.style.display = mod ? 'inline-block' : 'none';
 }
 
 // ── ELEMENT LIST ──────────────────────────────────────────────────────────────
-function renderList() {
-    const q = document.getElementById('search').value.toLowerCase();
-    const ul = document.getElementById('el-list');
-    ul.innerHTML = '';
-
+function buildItems(q) {
     const builtins = [], custom = [];
     for (const [name, data] of Object.entries(uiState)) {
-        if (!q || name.toLowerCase().includes(q)) {
+        if (!q || name.toLowerCase().includes(q))
             (data.is_custom ? custom : builtins).push([name, data]);
-        }
     }
-
     builtins.sort(([a],[b]) => a.localeCompare(b));
     custom.sort(([a],[b]) => a.localeCompare(b));
+    return { builtins, custom };
+}
 
+function populateList(ulId, q) {
+    const ul = document.getElementById(ulId);
+    if (!ul) return;
+    ul.innerHTML = '';
+    const { builtins, custom } = buildItems(q);
     if (!builtins.length && !custom.length) {
-        ul.innerHTML = '<li class="loading-msg">no elements found</li>';
-        return;
+        ul.innerHTML = '<li class="loading-msg">no elements found</li>'; return;
     }
-
-    for (const [name, data] of builtins) {
-        ul.appendChild(makeListItem(name, data));
-    }
-
+    for (const [name, data] of builtins) ul.appendChild(makeListItem(name, data));
     if (custom.length) {
         const lbl = document.createElement('li');
-        lbl.className = 'section-label';
-        lbl.textContent = '── custom shapes';
+        lbl.className = 'section-label'; lbl.textContent = '── custom shapes';
         ul.appendChild(lbl);
-        for (const [name, data] of custom) {
-            ul.appendChild(makeListItem(name, data));
-        }
+        for (const [name, data] of custom) ul.appendChild(makeListItem(name, data));
     }
+}
+
+function renderList() {
+    const qMobile = (document.getElementById('search')?.value || '').toLowerCase();
+    const qDesktop = (document.getElementById('search-desktop')?.value || '').toLowerCase();
+    populateList('el-list', qMobile);
+    populateList('el-list-desktop', qDesktop);
 }
 
 function makeListItem(name, data) {
     const li = document.createElement('li');
     li.className = 'element-item' + (currentEl === name ? ' active' : '');
     const mod = modifiedEls.has(name) ? '<span class="modified-badge">MOD</span>' : '';
-    const custom = data.is_custom ? '<span class="el-custom">★ custom</span>' : '';
-    li.innerHTML = `<div class="el-name">${name}${mod}</div><div class="el-type">${data.type}</div>${custom}`;
+    const cust = data.is_custom ? '<span class="el-custom">★ custom</span>' : '';
+    li.innerHTML = `<div class="el-name">${name}${mod}</div><div class="el-type">${data.type}</div>${cust}`;
     li.onclick = () => selectElement(name);
     return li;
 }
 
 document.getElementById('search').addEventListener('input', renderList);
+document.getElementById('search-desktop').addEventListener('input', renderList);
 
 // ── ADD SHAPE ─────────────────────────────────────────────────────────────────
-async function addShape() {
-    const type = document.getElementById('new-shape-type').value;
+async function _doAddShape(type) {
     const name = prompt(`Name for new ${type}:`, `custom_${type.toLowerCase().replace('custom','')}_${Date.now().toString(36)}`);
     if (!name || !name.trim()) return;
     const cleanName = name.trim().replace(/[^a-zA-Z0-9_]/g, '_');
-
     const defaultXY = type === 'CustomLine' ? '10,60,240,60' : '10,10,100,50';
     try {
         const r = await fetch('/plugins/tweak_view/api/add_shape', {
@@ -570,37 +804,32 @@ async function addShape() {
         const res = await r.json();
         if (r.ok && res.success) {
             toast(`${type} "${cleanName}" added ✓`);
-            await fetchState();
-            selectElement(cleanName);
-            setTimeout(refreshPreview, 400);
-        } else {
-            toast(res.error || 'add failed', 'error');
-        }
-    } catch(e) {
-        toast('network error', 'error');
-    }
+            await fetchState(); selectElement(cleanName);
+            setTimeout(refreshAll, 400);
+        } else { toast(res.error || 'add failed', 'error'); }
+    } catch(e) { toast('network error', 'error'); }
 }
+function addShape()        { _doAddShape(document.getElementById('new-shape-type').value); }
+function addShapeDesktop() { _doAddShape(document.getElementById('new-shape-type-desktop').value); }
 
 // ── SELECT ELEMENT ────────────────────────────────────────────────────────────
 function selectElement(name) {
     currentEl = name;
     renderList();
     renderProperties();
-    drawOverlay(name);
-    if (window.innerWidth <= 900) {
-        closeAllPanels();
-        setTimeout(() => toggleProps(), 50);
-    }
+    drawOverlayAll(name);
+    // On mobile: switch to Properties tab automatically
+    if (isMobile()) switchTab('props');
 }
 
 // ── OVERLAY ───────────────────────────────────────────────────────────────────
-function drawOverlay(name) {
-    const canvas = document.getElementById('overlay-canvas');
-    const img = document.getElementById('preview-img');
-    canvas.width = img.naturalWidth || img.width;
-    canvas.height = img.naturalHeight || img.height;
-    canvas.style.width = img.width + 'px';
-    canvas.style.height = img.height + 'px';
+function _drawOverlayOnCanvas(canvasId, imgEl, name) {
+    const canvas = document.getElementById(canvasId);
+    if (!canvas || !imgEl) return;
+    canvas.width = imgEl.naturalWidth || imgEl.width || 250;
+    canvas.height = imgEl.naturalHeight || imgEl.height || 122;
+    canvas.style.width = imgEl.offsetWidth + 'px';
+    canvas.style.height = imgEl.offsetHeight + 'px';
     const ctx = canvas.getContext('2d');
     ctx.clearRect(0, 0, canvas.width, canvas.height);
 
@@ -610,26 +839,17 @@ function drawOverlay(name) {
 
     const parts = props.xy.split(',').map(v => parseFloat(v.trim()));
     const isShape = uiState[name].is_line_or_shape;
-    ctx.strokeStyle = '#00e5ff';
-    ctx.lineWidth = 1;
-    ctx.setLineDash([3, 2]);
+    ctx.strokeStyle = '#00e5ff'; ctx.lineWidth = 1; ctx.setLineDash([3, 2]);
 
     if (isShape && parts.length === 4) {
         const [x0, y0, x1, y1] = parts;
-        const type = uiState[name].type;
-        if (type === 'CustomEllipse') {
-            // draw ellipse bounding box
-            ctx.strokeRect(x0, y0, x1-x0, y1-y0);
-        } else {
-            ctx.strokeRect(x0, y0, x1-x0, y1-y0);
-        }
-        // Corner dots
+        ctx.strokeRect(x0, y0, x1-x0, y1-y0);
         ctx.setLineDash([]);
         ctx.fillStyle = '#00e5ff';
         [[x0,y0],[x1,y0],[x0,y1],[x1,y1]].forEach(([cx,cy]) => {
             ctx.beginPath(); ctx.arc(cx, cy, 3, 0, Math.PI*2); ctx.fill();
         });
-    } else {
+    } else if (parts.length >= 2) {
         const [x, y] = parts;
         ctx.beginPath();
         ctx.moveTo(x, 0); ctx.lineTo(x, canvas.height);
@@ -641,105 +861,103 @@ function drawOverlay(name) {
     }
 }
 
-// ── PROPERTIES ────────────────────────────────────────────────────────────────
+function drawOverlayAll(name) {
+    _drawOverlayOnCanvas('overlay-canvas', document.getElementById('preview-img'), name);
+    _drawOverlayOnCanvas('mobile-overlay-canvas', document.getElementById('mobile-preview-img'), name);
+}
+
+// ── PROPERTIES — renders into both mobile and desktop targets ─────────────────
 function renderProperties() {
-    const title = document.getElementById('props-title');
-    const body = document.getElementById('props-body');
-    const footer = document.getElementById('props-footer');
-    const deleteBtn = document.getElementById('delete-btn');
+    const titleM  = document.getElementById('props-title');
+    const titleD  = document.getElementById('props-title-desktop');
+    const bodyM   = document.getElementById('props-body');
+    const bodyD   = document.getElementById('props-body-desktop');
+    const footerM = document.getElementById('props-footer');
+    const footerD = document.getElementById('props-footer-desktop');
+    const delM    = document.getElementById('delete-btn');
+    const delD    = document.getElementById('delete-btn-desktop');
 
     if (!currentEl || !uiState[currentEl]) {
-        title.textContent = '—';
-        body.innerHTML = '<p class="loading-msg">select an element</p>';
-        footer.style.display = 'none';
+        [titleM, titleD].forEach(t => { if(t) t.textContent = '—'; });
+        if(bodyM) bodyM.innerHTML = '<p class="loading-msg">select an element from the Elements tab</p>';
+        if(bodyD) bodyD.innerHTML = '<p class="loading-msg">select an element</p>';
+        if(footerM) footerM.style.display = 'none';
+        if(footerD) footerD.style.display = 'none';
         return;
     }
 
-    title.textContent = currentEl;
-    footer.style.display = 'flex';
-    deleteBtn.style.display = uiState[currentEl].is_custom ? 'block' : 'none';
+    const label = currentEl;
+    [titleM, titleD].forEach(t => { if(t) t.textContent = label; });
+    if(footerM) footerM.style.display = 'flex';
+    if(footerD) footerD.style.display = 'flex';
+    const isCustom = !!uiState[currentEl].is_custom;
+    if(delM) delM.style.display = isCustom ? 'block' : 'none';
+    if(delD) delD.style.display = isCustom ? 'block' : 'none';
 
     const props = uiState[currentEl].properties;
     const isLineOrShape = uiState[currentEl].is_line_or_shape;
     let h = '';
-    const skip = [];
 
     for (const [key, value] of Object.entries(props)) {
         if (key.startsWith('_')) continue;
-
+        if (key === 'color') continue; // Hide color for now since it's not relevant for most users and will require a more complex UI
         h += `<div class="prop-row"><div class="prop-label">${key}</div>`;
 
         if (key === 'xy' && isLineOrShape) {
-            // 4-point control: x0,y0,x1,y1
-            const p = String(value).split(',');
-            while (p.length < 4) p.push('0');
-            h += `
-            <div class="xy-grid">
-                <div class="xy-col">
-                    <label>X0 (start)</label>
+            const p = String(value).split(','); while (p.length < 4) p.push('0');
+            h += `<div class="xy-grid">
+                <div class="xy-col"><label>X0</label>
                     <input type="number" class="prop-input" id="xy_x0" value="${p[0].trim()}" oninput="liveShape()">
                     <div class="nudge-row">
                         <button class="nudge-btn" onclick="nudgeShape('x0',-10)">-10</button>
                         <button class="nudge-btn" onclick="nudgeShape('x0',-1)">-1</button>
                         <button class="nudge-btn" onclick="nudgeShape('x0',1)">+1</button>
                         <button class="nudge-btn" onclick="nudgeShape('x0',10)">+10</button>
-                    </div>
-                </div>
-                <div class="xy-col">
-                    <label>Y0 (start)</label>
+                    </div></div>
+                <div class="xy-col"><label>Y0</label>
                     <input type="number" class="prop-input" id="xy_y0" value="${p[1].trim()}" oninput="liveShape()">
                     <div class="nudge-row">
                         <button class="nudge-btn" onclick="nudgeShape('y0',-10)">-10</button>
                         <button class="nudge-btn" onclick="nudgeShape('y0',-1)">-1</button>
                         <button class="nudge-btn" onclick="nudgeShape('y0',1)">+1</button>
                         <button class="nudge-btn" onclick="nudgeShape('y0',10)">+10</button>
-                    </div>
-                </div>
-                <div class="xy-col">
-                    <label>X1 (end)</label>
+                    </div></div>
+                <div class="xy-col"><label>X1</label>
                     <input type="number" class="prop-input" id="xy_x1" value="${p[2].trim()}" oninput="liveShape()">
                     <div class="nudge-row">
                         <button class="nudge-btn" onclick="nudgeShape('x1',-10)">-10</button>
                         <button class="nudge-btn" onclick="nudgeShape('x1',-1)">-1</button>
                         <button class="nudge-btn" onclick="nudgeShape('x1',1)">+1</button>
                         <button class="nudge-btn" onclick="nudgeShape('x1',10)">+10</button>
-                    </div>
-                </div>
-                <div class="xy-col">
-                    <label>Y1 (end)</label>
+                    </div></div>
+                <div class="xy-col"><label>Y1</label>
                     <input type="number" class="prop-input" id="xy_y1" value="${p[3].trim()}" oninput="liveShape()">
                     <div class="nudge-row">
                         <button class="nudge-btn" onclick="nudgeShape('y1',-10)">-10</button>
                         <button class="nudge-btn" onclick="nudgeShape('y1',-1)">-1</button>
                         <button class="nudge-btn" onclick="nudgeShape('y1',1)">+1</button>
                         <button class="nudge-btn" onclick="nudgeShape('y1',10)">+10</button>
-                    </div>
-                </div>
+                    </div></div>
             </div>`;
         } else if (key === 'xy') {
             const p = String(value).split(',');
-            h += `
-            <div class="xy-grid">
-                <div class="xy-col">
-                    <label>X</label>
+            h += `<div class="xy-grid">
+                <div class="xy-col"><label>X</label>
                     <input type="number" class="prop-input" id="xy_x" value="${(p[0]||'0').trim()}" oninput="liveXY()">
                     <div class="nudge-row">
                         <button class="nudge-btn" onclick="nudge('x',-10)">-10</button>
                         <button class="nudge-btn" onclick="nudge('x',-1)">-1</button>
                         <button class="nudge-btn" onclick="nudge('x',1)">+1</button>
                         <button class="nudge-btn" onclick="nudge('x',10)">+10</button>
-                    </div>
-                </div>
-                <div class="xy-col">
-                    <label>Y</label>
+                    </div></div>
+                <div class="xy-col"><label>Y</label>
                     <input type="number" class="prop-input" id="xy_y" value="${(p[1]||'0').trim()}" oninput="liveXY()">
                     <div class="nudge-row">
                         <button class="nudge-btn" onclick="nudge('y',-10)">-10</button>
                         <button class="nudge-btn" onclick="nudge('y',-1)">-1</button>
                         <button class="nudge-btn" onclick="nudge('y',1)">+1</button>
                         <button class="nudge-btn" onclick="nudge('y',10)">+10</button>
-                    </div>
-                </div>
+                    </div></div>
             </div>`;
         } else if (key.includes('font')) {
             h += `<select class="prop-input" id="prop_${key}" onchange="setProp('${key}',this.value)">`;
@@ -752,7 +970,9 @@ function renderProperties() {
         h += `</div>`;
     }
 
-    body.innerHTML = h || '<p class="loading-msg">no editable properties</p>';
+    const html = h || '<p class="loading-msg">no editable properties</p>';
+    if(bodyM) bodyM.innerHTML = html;
+    if(bodyD) bodyD.innerHTML = html;
 }
 
 function setProp(key, value) {
@@ -768,7 +988,7 @@ function liveXY() {
     const y = document.getElementById('xy_y')?.value;
     if (x === undefined || y === undefined) return;
     setProp('xy', `${x},${y}`);
-    drawOverlay(currentEl);
+    drawOverlayAll(currentEl);
 }
 
 function liveShape() {
@@ -777,7 +997,7 @@ function liveShape() {
     const x1 = document.getElementById('xy_x1')?.value ?? '0';
     const y1 = document.getElementById('xy_y1')?.value ?? '0';
     setProp('xy', `${x0},${y0},${x1},${y1}`);
-    drawOverlay(currentEl);
+    drawOverlayAll(currentEl);
 }
 
 function nudge(axis, amount) {
@@ -808,7 +1028,7 @@ async function applyChanges() {
         const res = await r.json();
         if (r.ok && res.success) {
             toast('applied ✓');
-            setTimeout(refreshPreview, 400);
+            setTimeout(refreshAll, 400);
         } else {
             toast(res.error || 'apply failed', 'error');
         }
@@ -829,7 +1049,7 @@ async function revertElement() {
             toast('reverted');
             modifiedEls.delete(currentEl);
             await fetchState();
-            setTimeout(refreshPreview, 400);
+            setTimeout(refreshAll, 400);
         } else {
             toast('revert failed', 'error');
         }
@@ -851,7 +1071,7 @@ async function deleteElement() {
             currentEl = null;
             await fetchState();
             renderProperties();
-            setTimeout(refreshPreview, 400);
+            setTimeout(refreshAll, 400);
         } else {
             toast(res.error || 'delete failed', 'error');
         }
@@ -892,7 +1112,7 @@ async function doImport() {
         if (r.ok && res.success) {
             toast(`imported ${res.count} tweaks ✓`);
             closeImport(); modifiedEls.clear();
-            await fetchState(); setTimeout(refreshPreview, 500);
+            await fetchState(); setTimeout(refreshAll, 500);
         } else { toast(res.error || 'import failed', 'error'); }
     } catch(e) { toast('network error', 'error'); }
 }
@@ -909,62 +1129,92 @@ async function resetAll() {
         if (r.ok && res.success) {
             toast('all tweaks reset ✓');
             modifiedEls.clear(); currentEl = null;
-            await fetchState(); renderProperties(); setTimeout(refreshPreview, 500);
+            await fetchState(); renderProperties(); setTimeout(refreshAll, 500);
         } else { toast(res.error || 'reset failed', 'error'); }
     } catch(e) { toast('network error', 'error'); }
 }
 
-// ── PREVIEW ───────────────────────────────────────────────────────────────────
-function refreshPreview() {
+// ── PREVIEW — desktop ─────────────────────────────────────────────────────────
+function refreshDesktopPreview(callback) {
     const img = document.getElementById('preview-img');
     const newImg = new Image();
     newImg.onload = () => {
         img.src = newImg.src;
-        const canvas = document.getElementById('overlay-canvas');
-        canvas.style.width = img.offsetWidth + 'px';
-        canvas.style.height = img.offsetHeight + 'px';
-        drawOverlay(currentEl);
+        scalePreviewDesktop();
         document.getElementById('last-refresh').textContent = new Date().toLocaleTimeString();
+        if (callback) callback();
     };
     newImg.src = `/ui?t=${Date.now()}`;
 }
 
-function scalePreview() {
+function scalePreviewDesktop() {
     const wrap = document.getElementById('preview-wrap');
     const img = document.getElementById('preview-img');
-    const wW = wrap.clientWidth - 40;
-    const wH = wrap.clientHeight - 40;
-    const iW = img.naturalWidth || 250;
-    const iH = img.naturalHeight || 122;
+    if (!wrap || !img) return;
+    const wW = wrap.clientWidth - 40, wH = wrap.clientHeight - 40;
+    const iW = img.naturalWidth || 250, iH = img.naturalHeight || 122;
     const s = Math.min(Math.floor(wW / iW), Math.floor(wH / iH), 6) || 2;
-    img.width = iW * s; img.height = iH * s; previewScale = s;
+    img.width = iW * s; img.height = iH * s;
     const canvas = document.getElementById('overlay-canvas');
-    canvas.width = iW; canvas.height = iH;
-    canvas.style.width = img.width + 'px'; canvas.style.height = img.height + 'px';
-    drawOverlay(currentEl);
+    if (canvas) {
+        canvas.width = iW; canvas.height = iH;
+        canvas.style.width = img.width + 'px'; canvas.style.height = img.height + 'px';
+    }
+    drawOverlayAll(currentEl);
+}
+document.getElementById('preview-img').onload = scalePreviewDesktop;
+
+// ── PREVIEW — mobile ──────────────────────────────────────────────────────────
+function refreshMobilePreview(callback) {
+    const img = document.getElementById('mobile-preview-img');
+    const newImg = new Image();
+    newImg.onload = () => {
+        img.src = newImg.src;
+        scaleMobilePreview();
+        document.getElementById('mobile-last-refresh').textContent = new Date().toLocaleTimeString();
+        if (callback) callback();
+    };
+    newImg.src = `/ui?t=${Date.now()}`;
 }
 
-document.getElementById('preview-img').onload = scalePreview;
-window.addEventListener('resize', scalePreview);
+function scaleMobilePreview() {
+    const wrap = document.getElementById('mobile-preview-wrap');
+    const img = document.getElementById('mobile-preview-img');
+    if (!wrap || !img || !img.naturalWidth) return;
+    // Fill available width minus padding, cap at 3× for sharpness
+    const availW = wrap.clientWidth - 24;
+    const iW = img.naturalWidth, iH = img.naturalHeight;
+    const s = Math.min(Math.floor(availW / iW), 4) || 2;
+    img.width = iW * s; img.height = iH * s;
+    const canvas = document.getElementById('mobile-overlay-canvas');
+    if (canvas) {
+        canvas.width = iW; canvas.height = iH;
+        canvas.style.width = img.width + 'px'; canvas.style.height = img.height + 'px';
+        // Position the canvas correctly within the preview frame
+        const frame = document.getElementById('mobile-preview-frame');
+        if (frame) { canvas.style.top = '0'; canvas.style.left = '0'; }
+    }
+    drawOverlayAll(currentEl);
+}
+document.getElementById('mobile-preview-img').onload = scaleMobilePreview;
 
-function startAutoRefresh() { stopAutoRefresh(); refreshTimer = setInterval(refreshPreview, 5000); }
-function stopAutoRefresh() { if (refreshTimer) clearInterval(refreshTimer); }
+// ── UNIFIED REFRESH ───────────────────────────────────────────────────────────
+function refreshAll() {
+    refreshDesktopPreview();
+    refreshMobilePreview();
+}
+
+// ── AUTO-REFRESH ──────────────────────────────────────────────────────────────
+function startAutoRefresh() { stopAutoRefresh(); refreshTimer = setInterval(refreshAll, 5000); }
+function stopAutoRefresh()  { if (refreshTimer) clearInterval(refreshTimer); }
 document.getElementById('auto-refresh').addEventListener('change', function() {
+    autoRefreshOn = this.checked;
     this.checked ? startAutoRefresh() : stopAutoRefresh();
     toast(this.checked ? 'auto-refresh on' : 'auto-refresh off');
 });
 
-// ── TOAST ─────────────────────────────────────────────────────────────────────
-function toast(msg, type='') {
-    const el = document.createElement('div');
-    el.className = 'toast ' + type;
-    el.textContent = '> ' + msg;
-    document.getElementById('toast-container').appendChild(el);
-    setTimeout(() => el.remove(), 3100);
-}
-
 // ── INIT ──────────────────────────────────────────────────────────────────────
-refreshPreview();
+refreshAll();
 fetchState();
 startAutoRefresh();
 </script>
@@ -1170,7 +1420,7 @@ startAutoRefresh();
         self._state = 0
 
     def on_ready(self, agent):
-        logging.info("tweak_view 3.0 ready")
+        logging.info("tweak_view 2.0 ready")
         self._agent = agent
 
     def on_unload(self, ui):
@@ -1184,15 +1434,7 @@ startAutoRefresh();
 
     def on_ui_setup(self, ui):
         self._ui = ui
-
-        self.myFonts = {
-            "Small": fonts.Small,
-            "BoldSmall": fonts.BoldSmall,
-            "Medium": fonts.Medium,
-            "Bold": fonts.Bold,
-            "BoldBig": fonts.BoldBig,
-            "Huge": fonts.Huge
-        }
+        # reuse `self.myFonts` initialized in __init__ (avoid duplicate assignment)
 
         just_once = True
         for p in [6,7,8,9,10,11,12,14,16,18,20,24,25,28,30,35,42,48,52,54,60,69,72,80,90,100,120]:
@@ -1217,7 +1459,7 @@ startAutoRefresh();
                 self._tweaks = saved
 
             self._already_updated = []
-            self._logger.info("tweak_view 3.0 ready.")
+            self._logger.info("tweak_view 2.0 ready.")
         except Exception as err:
             self._logger.warning("tweak_view loading failed: %s" % repr(err))
 
