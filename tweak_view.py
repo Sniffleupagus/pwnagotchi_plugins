@@ -166,6 +166,15 @@ class Tweak_View(plugins.Plugin):
                 "is_custom": True
             }
 
+        # Expose screen dimensions so the UI can show them and enforce bounds
+        try:
+            state["__screen__"] = {
+                "width": view.width(),
+                "height": view.height()
+            }
+        except Exception:
+            pass
+
         return state
 
     # get_ui_dimensions removed (not used) to trim unused helpers
@@ -509,6 +518,7 @@ class Tweak_View(plugins.Plugin):
     <div class="statsbar desktop-only">
         <div class="stat">elements: <span id="stat-total">0</span></div>
         <div class="stat">modified: <span id="stat-mod">0</span></div>
+        <div class="stat">screen: <span id="stat-dims">—</span></div>
     </div>
 
     <div class="topbar-actions">
@@ -660,6 +670,7 @@ let currentEl = null;
 let modifiedEls = new Set();
 let refreshTimer = null;
 let autoRefreshOn = true;
+let screenW = 0, screenH = 0;
 const FONT_LIST = ["Small","BoldSmall","Medium","Bold","BoldBig","Huge"];
 
 // ── TOAST NOTIFICATIONS ───────────────────────────────────────────────────────
@@ -720,6 +731,12 @@ async function fetchState() {
     try {
         const r = await fetch('/plugins/tweak_view/api/state');
         uiState = await r.json();
+        // Extract screen dimensions and remove from element list
+        if (uiState['__screen__']) {
+            screenW = uiState['__screen__'].width || 0;
+            screenH = uiState['__screen__'].height || 0;
+            delete uiState['__screen__'];
+        }
         renderList();
         updateStats();
     } catch(e) {
@@ -733,6 +750,9 @@ function updateStats() {
     // Desktop
     document.getElementById('stat-total').textContent = total;
     document.getElementById('stat-mod').textContent = mod;
+    // Show screen dimensions if available
+    const dimEl = document.getElementById('stat-dims');
+    if (dimEl) dimEl.textContent = screenW && screenH ? `${screenW}×${screenH}` : '—';
     // Mobile tab badges
     const elBadge = document.getElementById('tab-el-badge');
     elBadge.textContent = total; elBadge.style.display = total ? 'inline-block' : 'none';
@@ -905,7 +925,8 @@ function renderProperties() {
 
         if (key === 'xy' && isLineOrShape) {
             const p = String(value).split(','); while (p.length < 4) p.push('0');
-            h += `<div class="xy-grid">
+            const hint = screenW && screenH ? `<div style="font-size:10px;color:var(--text-dim);margin-bottom:6px;">screen: ${screenW}×${screenH} — values clamped to bounds</div>` : '';
+            h += `
                 <div class="xy-col"><label>X0</label>
                     <input type="number" class="prop-input" id="xy_x0" value="${p[0].trim()}" oninput="liveShape()">
                     <div class="nudge-row">
@@ -938,10 +959,12 @@ function renderProperties() {
                         <button class="nudge-btn" onclick="nudgeShape('y1',1)">+1</button>
                         <button class="nudge-btn" onclick="nudgeShape('y1',10)">+10</button>
                     </div></div>
-            </div>`;
+            </div>
+            <div class="xy-grid">${hint}`;
         } else if (key === 'xy') {
             const p = String(value).split(',');
-            h += `<div class="xy-grid">
+            const hint = screenW && screenH ? `<div style="font-size:10px;color:var(--text-dim);margin-bottom:6px;">screen: ${screenW}×${screenH} — values clamped to bounds</div>` : '';
+            h += `
                 <div class="xy-col"><label>X</label>
                     <input type="number" class="prop-input" id="xy_x" value="${(p[0]||'0').trim()}" oninput="liveXY()">
                     <div class="nudge-row">
@@ -958,7 +981,8 @@ function renderProperties() {
                         <button class="nudge-btn" onclick="nudge('y',1)">+1</button>
                         <button class="nudge-btn" onclick="nudge('y',10)">+10</button>
                     </div></div>
-            </div>`;
+            </div>
+            <div class="xy-grid">${hint}`;
         } else if (key.includes('font')) {
             h += `<select class="prop-input" id="prop_${key}" onchange="setProp('${key}',this.value)">`;
             for (const f of FONT_LIST) h += `<option ${f===value?'selected':''}>${f}</option>`;
@@ -983,34 +1007,68 @@ function setProp(key, value) {
     renderList();
 }
 
+// Helper: get value from an xy input across both panels (both have same id, pick the filled one)
+function getInputVal(id) {
+    // querySelectorAll gets all matching ids; return the first with a value, preferring visible
+    const els = document.querySelectorAll('#' + id);
+    for (const el of els) {
+        if (el && el.value !== '') return el.value;
+    }
+    return '0';
+}
+
+// Keep both panels' inputs in sync
+function syncInputs(id, val) {
+    document.querySelectorAll('#' + id).forEach(el => { if (el) el.value = val; });
+}
+
 function liveXY() {
-    const x = document.getElementById('xy_x')?.value;
-    const y = document.getElementById('xy_y')?.value;
-    if (x === undefined || y === undefined) return;
-    setProp('xy', `${x},${y}`);
+    const x = getInputVal('xy_x');
+    const y = getInputVal('xy_y');
+    // Clamp to screen bounds
+    const cx = clampCoord(parseInt(x)||0, 'x');
+    const cy = clampCoord(parseInt(y)||0, 'y');
+    syncInputs('xy_x', cx);
+    syncInputs('xy_y', cy);
+    setProp('xy', `${cx},${cy}`);
     drawOverlayAll(currentEl);
 }
 
 function liveShape() {
-    const x0 = document.getElementById('xy_x0')?.value ?? '0';
-    const y0 = document.getElementById('xy_y0')?.value ?? '0';
-    const x1 = document.getElementById('xy_x1')?.value ?? '0';
-    const y1 = document.getElementById('xy_y1')?.value ?? '0';
-    setProp('xy', `${x0},${y0},${x1},${y1}`);
+    const x0 = parseInt(getInputVal('xy_x0'))||0;
+    const y0 = parseInt(getInputVal('xy_y0'))||0;
+    const x1 = parseInt(getInputVal('xy_x1'))||0;
+    const y1 = parseInt(getInputVal('xy_y1'))||0;
+    const cx0 = clampCoord(x0, 'x'), cy0 = clampCoord(y0, 'y');
+    const cx1 = clampCoord(x1, 'x'), cy1 = clampCoord(y1, 'y');
+    syncInputs('xy_x0', cx0); syncInputs('xy_y0', cy0);
+    syncInputs('xy_x1', cx1); syncInputs('xy_y1', cy1);
+    setProp('xy', `${cx0},${cy0},${cx1},${cy1}`);
     drawOverlayAll(currentEl);
 }
 
+// Clamp a coordinate to screen bounds (0 to max-1); axis is 'x' or 'y'
+function clampCoord(val, axis) {
+    if (!screenW || !screenH) return val; // no bounds info yet
+    if (axis === 'x') return Math.max(0, Math.min(val, screenW - 1));
+    if (axis === 'y') return Math.max(0, Math.min(val, screenH - 1));
+    return val;
+}
+
 function nudge(axis, amount) {
-    const el = document.getElementById(`xy_${axis}`);
-    if (!el) return;
-    el.value = parseInt(el.value || '0') + amount;
+    const id = `xy_${axis}`;
+    const cur = parseInt(getInputVal(id) || '0') + amount;
+    const clamped = clampCoord(cur, axis === 'x' ? 'x' : 'y');
+    syncInputs(id, clamped);
     liveXY(); applyChanges();
 }
 
 function nudgeShape(axis, amount) {
-    const el = document.getElementById(`xy_${axis}`);
-    if (!el) return;
-    el.value = parseInt(el.value || '0') + amount;
+    const id = `xy_${axis}`;
+    const rawAxis = axis.startsWith('x') ? 'x' : 'y';
+    const cur = parseInt(getInputVal(id) || '0') + amount;
+    const clamped = clampCoord(cur, rawAxis);
+    syncInputs(id, clamped);
     liveShape(); applyChanges();
 }
 
@@ -1502,6 +1560,13 @@ startAutoRefresh();
                             is_4pt = (current_xy is not None and len(current_xy) == 4) or \
                                      isinstance(elem, (Line, CustomLine, CustomRect, CustomEllipse))
 
+                            # Get screen bounds for clamping
+                            try:
+                                _sw = ui.width()
+                                _sh = ui.height()
+                            except Exception:
+                                _sw = _sh = None
+
                             if is_4pt:
                                 while len(parts) < 4:
                                     parts.append(0)
@@ -1510,10 +1575,22 @@ startAutoRefresh();
                                 if parts[1] < 0: parts[1] = ui.height() + parts[1]
                                 if parts[2] < 0: parts[2] = ui.width() + parts[2]
                                 if parts[3] < 0: parts[3] = ui.height() + parts[3]
+                                # Clamp to screen bounds
+                                if _sw is not None:
+                                    parts[0] = max(0, min(parts[0], _sw - 1))
+                                    parts[2] = max(0, min(parts[2], _sw - 1))
+                                if _sh is not None:
+                                    parts[1] = max(0, min(parts[1], _sh - 1))
+                                    parts[3] = max(0, min(parts[3], _sh - 1))
                                 elem.xy = parts
                             else:
                                 if parts[0] < 0: parts[0] = ui.width() + parts[0]
                                 if parts[1] < 0: parts[1] = ui.height() + parts[1]
+                                # Clamp to screen bounds
+                                if _sw is not None:
+                                    parts[0] = max(0, min(parts[0], _sw - 1))
+                                if _sh is not None:
+                                    parts[1] = max(0, min(parts[1], _sh - 1))
                                 elem.xy = parts[:2]
 
                         elif key in ["font", "text_font", "alt_font", "label_font"]:
