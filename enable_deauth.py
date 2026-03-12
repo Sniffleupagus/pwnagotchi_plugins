@@ -9,7 +9,7 @@ import pwnagotchi.ui.fonts as fonts
 
 try:
     sys.path.append(os.path.dirname(__file__))
-    from Touch_UI import Touch_Button, Touch_Screen
+    from Touch_UI import Touch_Button
     TOUCH_ENABLED = True
 except ImportError:
     TOUCH_ENABLED = False
@@ -17,7 +17,7 @@ except ImportError:
 
 class enable_deauth(plugins.Plugin):
     __author__ = 'Sniffleupagus'
-    __version__ = '1.0.1'
+    __version__ = '1.0.2'
     __license__ = 'GPL3'
     __description__ = 'Enable and disable DEAUTH on the fly. Enabled when plugin loads, disabled when plugin unloads.'
 
@@ -30,14 +30,10 @@ class enable_deauth(plugins.Plugin):
         self._behave = False
         self._deauth_enable = True
 
-        self._current_aps = []
-
-    # make web_ui that lists hosts. click to add to behave_list, or deauth
-    # button to toggle
 
     # called when the plugin is loaded
     def on_loaded(self):
-        logging.info("[EnableDeauth] loaded %s" % repr(self.options))
+        logging.info("[Enable_Deauth] loaded %s" % repr(self.options))
         self._count = 0
 
         # set personality.deauth to this when ready
@@ -182,8 +178,4 @@ class enable_deauth(plugins.Plugin):
 
     # called when the ui is updated
     def on_ui_update(self, ui):
-        # update those elements
-        try:
-            ui.set('deauth_count', str(self._count))  # Update with current deauth count
-        except Exception as err:
-            logging.warning("[Enable_Deauth] ui setup error: %s" % repr(err))
+        ui.set('deauth_count', str(self._count))
