@@ -17,7 +17,7 @@ except ImportError:
 
 class enable_deauth(plugins.Plugin):
     __author__ = 'Sniffleupagus'
-    __version__ = '1.0.2'
+    __version__ = '1.0.3'
     __license__ = 'GPL3'
     __description__ = 'Enable and disable DEAUTH on the fly. Enabled when plugin loads, disabled when plugin unloads.'
 
@@ -119,62 +119,52 @@ class enable_deauth(plugins.Plugin):
         except Exception as err:
             logging.warning("[Enable_Deauth] ui setup error: %s" % repr(err))
 
-    # called when refreshing AP list
-    def on_unfiltered_ap_list(self, agent, access_points):
-        oh_behave = False
-        for ap in access_points:
-            if ap.get('hostname', '[no hostname]') in self._behave_list:
-                oh_behave = True
-                if self._behave == False:
-                    logging.info("[Enable_Deauth] %s visible: behaving" % ap.get('hostname', '[unknown]'))
-            elif ap.get('mac', '[no hostname]').lower() in self._behave_list:
-                oh_behave = True
-
-        # temporary setting, so disable, but do not
-        # change self._deauth_enable
-        if oh_behave and not self._behave:
+    def _set_behave(self, agent, behaving):
+        """Toggle behave mode (suppress deauth near home networks)."""
+        if behaving and not self._behave:
             self._behave = True
-            agent._config['personality']['deauth'] = False
-            logging.info("[Enable_Deauth] Home networks visible. Pausing")
+            agent._config["personality"]["deauth"] = False
+            logging.info("[Enable_Deauth] Home networks visible. Pausing deauth.")
             if self._ui:
-                d_label = self._ui._state._state['deauth_count']
+                d_label = self._ui._state._state["deauth_count"]
                 try:
                     d_label.label = d_label.label.lower()
-                except Exception as e:
+                except Exception:
                     d_label.text = d_label.text.lower()
-        elif self._behave and not oh_behave:
+        elif not behaving and self._behave:
             self._behave = False
+            agent._config["personality"]["deauth"] = self._deauth_enable
             logging.info("[Enable_Deauth] Home networks gone. Enabled: %s" % self._deauth_enable)
-            agent._config['personality']['deauth'] = self._deauth_enable
             if self._ui:
-                d_label = self._ui._state._state['deauth_count']
+                d_label = self._ui._state._state["deauth_count"]
                 try:
                     d_label.label = d_label.label.capitalize()
-                except Exception as e:
+                except Exception:
                     d_label.text = d_label.text.capitalize()
+
+    # called when refreshing AP list
+    def on_unfiltered_ap_list(self, agent, access_points):
+        oh_behave = any(
+            ap.get("hostname", "") in self._behave_list or
+            ap.get("mac", "").lower() in self._behave_list
+            for ap in access_points
+        )
+        self._set_behave(agent, oh_behave)
 
 
     # Switch off deauths as soon as a home network shows up
     def on_bcap_wifi_ap_new(self, agent, event):
         try:
-            if agent._config['personality']['deauth']:
-                ap = event['data']
-                apname = ap['hostname']
-                apmac = ap['mac'].lower()
-
+            if agent._config["personality"]["deauth"]:
+                ap = event["data"]
+                apname = ap["hostname"]
+                apmac = ap["mac"].lower()
                 if apname in self._behave_list or apmac in self._behave_list:
-                    self._behave = True
-                    logging.info("[Enable_Deauth] %s (%s) appeared: behaving" % (apname, apmac))
-                    agent._config['personality']['deauth'] = False
-                    if self._ui:
-                        d_label = self._ui._state._state['deauth_count']
-                        try:
-                            d_label.label = d_label.label.lower()
-                        except Exception as e:
-                            d_label.text = d_label.text.lower()
-
+                    logging.info("[Enable_Deauth] %s (%s) appeared" % (apname, apmac))
+                    self._set_behave(agent, True)
         except Exception as e:
             logging.exception("[Enable_Deauth] %s" % repr(e))
+
 
     # called when the ui is updated
     def on_ui_update(self, ui):
