@@ -16,24 +16,20 @@ except ImportError:
 
 
 def ok204_or_redirect(request):
-    ua = request.user_agent
-    logging.debug("UA: platform: %s, browser: %s, version: %s, language: %s\n\tstring: %s" % (ua.platform, ua.browser, ua.version, ua.language, ua.string))
+    """Return 204 No Content, or redirect for iOS Safari (which needs it)."""
     try:
-        if ua.browser == 'safari':
-            if ua.platform == 'iphone' or 'iPhone' in ua.string:
-                logging.debug("Redirect: %s" % ua.string)
-                return redirect(request.referrer)
-            else:
-                return 'OK', 204
-        else:
-            return 'OK', 204
+        ua_string = str(request.user_agent)
+        logging.debug("[Enable_Assoc] UA: %s" % ua_string)
+        if "iPhone" in ua_string or "iPad" in ua_string:
+            return redirect(request.referrer or "/plugins")
+        return "OK", 204
     except Exception as e:
-        logging.exception("UA: %s, error: %s" % (repr(ua), e))
-        return e,204
+        logging.warning("[Enable_Assoc] UA redirect error: %s" % repr(e))
+        return "OK", 204
 
 class enable_assoc(plugins.Plugin):
     __author__ = 'evilsocket@gmail.com'
-    __version__ = '1.0.2'
+    __version__ = '1.0.3'
     __license__ = 'GPL3'
     __description__ = 'Enable and disable ASSOC on the fly. Enabled when plugin loads, disabled when plugin unloads.'
 
