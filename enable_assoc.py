@@ -10,7 +10,7 @@ from flask import redirect
 
 try:
     sys.path.append(os.path.dirname(__file__))
-    from Touch_UI import Touch_Button, Touch_Screen
+    from Touch_UI import Touch_Button
 except ImportError:
     logging.debug("Touch_UI not available for enable_assoc")
 
@@ -33,7 +33,7 @@ def ok204_or_redirect(request):
 
 class enable_assoc(plugins.Plugin):
     __author__ = 'evilsocket@gmail.com'
-    __version__ = '1.0.1'
+    __version__ = '1.0.2'
     __license__ = 'GPL3'
     __description__ = 'Enable and disable ASSOC on the fly. Enabled when plugin loads, disabled when plugin unloads.'
 
@@ -41,6 +41,7 @@ class enable_assoc(plugins.Plugin):
         self._agent = None
         self._count = 0
         self.hasTouch = False
+        self._ui = None
         self._touchscreen = None
 
     # called when http://<host>:<port>/plugins/<plugin>/ is called
@@ -48,9 +49,7 @@ class enable_assoc(plugins.Plugin):
     # IMPORTANT: If you use "POST"s, add a csrf-token (via csrf_token() and render_template_string)
     def on_webhook(self, path, request):
         try:
-            method = request.method
-            path = request.path
-            if "/toggle" in path:
+            if "/toggle" in request.path:
                 self._ui._state._state['assoc_count'].state = not self._ui._state._state['assoc_count'].state
                 if self._agent:
                     self._agent._config['personality']['associate'] = self._ui._state._state['assoc_count'].state
@@ -59,7 +58,7 @@ class enable_assoc(plugins.Plugin):
             else:
                 return "<html><head><title>Nothing happened</title></head><body><h1>Nothing happened.</h1></body></html>"
         except Exception as e:
-            logging.exception(e)
+            logging.exception("[Enable_Assoc] webhook error")
             return "<html><head><title>Nothing happened</title></head><body><h1>Error: %s</h1></body></html>" % (e)
 
     # called when the plugin is loaded
@@ -105,8 +104,6 @@ class enable_assoc(plugins.Plugin):
         except Exception as err:
             logging.warning("[Enable_Assoc] touch error: %s" % repr(err))
 
-    def on_touch_press(self, ts, ui, ui_element, touch_data):
-        logging.debug("[Enable_Assoc] Touch press: %s" % repr(touch_data))
 
     def on_association(self, agent, access_point):
         self._count += 1
@@ -141,7 +138,7 @@ class enable_assoc(plugins.Plugin):
             ui.add_element('assoc_count', LabeledValue(color=BLACK, label='A', value='0', position=pos,
                                                        label_font=fonts.BoldSmall, text_font=fonts.Small))
 
-        # called when the ui is updated
+    # called when the ui is updated
     def on_ui_update(self, ui):
         # update those elements
         ui.set('assoc_count', str(self._count))
