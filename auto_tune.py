@@ -147,7 +147,7 @@ class auto_tune(plugins.Plugin):
         path = request.path if request.path.endswith("/update") else "%s/update" % request.path
 
         ret = '<form method=post action="%s">' % path
-        ret += '<input id="csrf_token" name="csrf_token" type="hidden" value="{{ csrf_token() }}">'
+        ret += '<input id="csrf_token" name="csrf_token" ="hidden" value="{{ csrf_token() }}">'
 
         form_data = request.values.items()
 
@@ -158,8 +158,8 @@ class auto_tune(plugins.Plugin):
             ret += '<tr align=left><th>Parameter</th><th>Value</th><th>Description</th></tr>\n'
 
             for p in sorted(sec):
-                if type(sec[p]) in [int, str, float, bool]:
-                    cls = type(sec[p]).__name__
+                if type(sec[p]) in [int, str, float, bool, Int, Float, String, Bool]:
+                    cls = type(sec[p]).__name__.lower()
                     iname = "newval,%s,%s,%s" % (sec[p], p, cls)
                     ret += "<tr align=left>"
                     if cls == "bool":
