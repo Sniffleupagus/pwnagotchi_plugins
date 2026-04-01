@@ -11,8 +11,8 @@ from flask import redirect
 try:
     sys.path.append(os.path.dirname(__file__))
     from Touch_UI import Touch_Button, Touch_Screen
-except Exception as e:
-    logging.warn(repr(e))
+except ImportError:
+    logging.debug("Touch_UI not available for enable_assoc")
 
 
 def ok204_or_redirect(request):
@@ -33,9 +33,9 @@ def ok204_or_redirect(request):
 
 class enable_assoc(plugins.Plugin):
     __author__ = 'evilsocket@gmail.com'
-    __version__ = '1.0.0'
+    __version__ = '1.0.1'
     __license__ = 'GPL3'
-    __description__ = 'Enable and disable ASSOC  on the fly. Enabled when plugin loads, disabled when plugin unloads.'
+    __description__ = 'Enable and disable ASSOC on the fly. Enabled when plugin loads, disabled when plugin unloads.'
 
     def __init__(self):
         self._agent = None
@@ -65,7 +65,6 @@ class enable_assoc(plugins.Plugin):
     # called when the plugin is loaded
     def on_loaded(self):
         self._count = 0
-        pass
 
     # called before the plugin is unloaded
     def on_unload(self, ui):
@@ -75,7 +74,7 @@ class enable_assoc(plugins.Plugin):
             ui.remove_element('assoc_count')
             logging.info("[Enable_Assoc] unloading")
         except Exception as e:
-            logging.warn(repr(e))
+            logging.warning("[Enable_Assoc] unload error: %s" % repr(e))
 
     # called when everything is ready and the main loop is about to start
     def on_ready(self, agent):
@@ -91,12 +90,12 @@ class enable_assoc(plugins.Plugin):
         logging.info("[Enable_Assoc] ready: enabled association")
 
     def on_touch_ready(self, touchscreen):
-        logging.info("[ASSOC] Touchscreen %s" % repr(touchscreen))
+        logging.info("[Enable_Assoc] Touchscreen %s" % repr(touchscreen))
         self._touchscreen = touchscreen
         self.hasTouch = self._touchscreen and self._touchscreen.running
 
     def on_touch_release(self, ts, ui, ui_element, touch_data):
-        logging.debug("[ASSOC] Touch release: %s" % repr(touch_data));
+        logging.debug("[Enable_Assoc] Touch release: %s" % repr(touch_data))
         try:
             if ui_element == "assoc_count":
                 logging.debug("Toggling assoc %s" % repr(self._agent._config['personality']['associate']))
@@ -104,10 +103,10 @@ class enable_assoc(plugins.Plugin):
                 logging.info("Toggled assoc to %s" % repr(self._ui._state._state['assoc_count'].state))
 
         except Exception as err:
-            logging.info("%s" % repr(err))
+            logging.warning("[Enable_Assoc] touch error: %s" % repr(err))
 
     def on_touch_press(self, ts, ui, ui_element, touch_data):
-        logging.debug("[ASSOC] Touch press: %s" % repr(touch_data));
+        logging.debug("[Enable_Assoc] Touch press: %s" % repr(touch_data))
 
     def on_association(self, agent, access_point):
         self._count += 1
@@ -145,4 +144,4 @@ class enable_assoc(plugins.Plugin):
         # called when the ui is updated
     def on_ui_update(self, ui):
         # update those elements
-        ui.set('assoc_count', "%d" % (self._count))
+        ui.set('assoc_count', str(self._count))
