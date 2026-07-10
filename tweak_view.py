@@ -213,7 +213,7 @@ class Tweak_View(plugins.Plugin):
     <title>tweak_view // pwnagotchi</title>
     <meta name="csrf_token" content="{{ csrf_token() }}">
     <style>
-        @import url('https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Exo+2:wght@300;600;800&display=swap');
+        @import url('https://fonts.googleapis.com/css2?family=Press+Start+2P&family=VT323&family=Share+Tech+Mono&family=Exo+2:wght@300;600;800&display=swap');
         :root {
             --bg: #080c0e; --panel: #0d1417; --border: #1a2a2a;
             --accent: #00e5ff; --accent2: #39ff14; --warn: #ff6b35;
@@ -221,6 +221,58 @@ class Tweak_View(plugins.Plugin):
             --text-dim: #557070; --font-mono: 'Share Tech Mono', monospace;
             --font-ui: 'Exo 2', sans-serif;
         }
+
+        /* Vaporwave theme */
+        body.theme-vaporwave {
+            --bg: #1a0b2e; --panel: #2d1b4e; --border: #5c3d7a;
+            --accent: #ff71ce; --accent2: #01cdfe; --warn: #ff9669;
+            --danger: #ff4655; --muted: #6a4c7a; --text: #d4b5e8;
+            --text-dim: #9a7bb0; --font-mono: 'VT323', monospace;
+            --font-ui: 'Press Start 2P', cursive;
+        }
+        body.theme-vaporwave::before {
+            content: "";
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: repeating-linear-gradient(
+                0deg,
+                rgba(0, 0, 0, 0.15),
+                rgba(0, 0, 0, 0.15) 1px,
+                transparent 1px,
+                transparent 2px
+            );
+            pointer-events: none;
+            z-index: 9998;
+        }
+        body.theme-vaporwave .topbar,
+        body.theme-vaporwave .sidebar,
+        body.theme-vaporwave .props-panel {
+            border-color: var(--accent);
+            box-shadow: 0 0 10px var(--accent), inset 0 0 20px rgba(255, 113, 206, 0.05);
+        }
+        body.theme-vaporwave .btn-primary,
+        body.theme-vaporwave .btn-success {
+            border-color: var(--accent2);
+            text-shadow: 0 0 5px var(--accent2);
+            box-shadow: 0 0 8px rgba(1, 205, 254, 0.3);
+        }
+        body.theme-vaporwave .btn-primary:hover,
+        body.theme-vaporwave .btn-success:hover {
+            box-shadow: 0 0 15px rgba(1, 205, 254, 0.6);
+        }
+        body.theme-vaporwave .preview-frame {
+            border-color: var(--accent);
+            box-shadow: 0 0 30px var(--accent), inset 0 0 10px rgba(0,0,0,0.5);
+        }
+
+        /* Windows 95 theme */
+        body.theme-win95 {
+            --bg: #008080; --panel: #c0c0c0; --border: #808080;
+            --accent: #000080; --accent2: #ffffff; --warn: #808000;
+            --danger: #800000; --muted: #808080; --text: #000000;
+            --text-dim: #404040; --font-mono: 'Courier New', monospace;
+            --font-ui: 'Tahoma', sans-serif;
+        }
+
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body { font-family: var(--font-mono); background: var(--bg); color: var(--text);
                height: 100dvh; overflow: hidden; display: flex; flex-direction: column; }
@@ -530,6 +582,13 @@ class Tweak_View(plugins.Plugin):
             <span>auto</span>
         </label>
 
+        <!-- Theme switcher -->
+        <select id="theme-selector" class="btn btn-sm desktop-only" onchange="changeTheme(this.value)" style="background:var(--bg);border:1px solid var(--muted);color:var(--text);font-family:var(--font-mono);padding:5px 10px;border-radius:3px;outline:none;">
+            <option value="cyber">Cyber</option>
+            <option value="vaporwave">Vaporwave</option>
+            <option value="win95">Windows 95</option>
+        </select>
+
         <button class="btn btn-sm btn-primary" onclick="refreshAll()">↺</button>
 
         <!-- Desktop-only secondary buttons -->
@@ -542,6 +601,12 @@ class Tweak_View(plugins.Plugin):
             <button class="btn btn-sm" onclick="toggleOverflow()" style="padding:5px 10px;font-size:15px;letter-spacing:2px;">⋯</button>
             <div id="overflow-menu">
                 <button class="overflow-item" onclick="toggleAutoRefreshMenu()"><span id="ar-menu-label">⏸ pause auto-refresh</span></button>
+                <button class="overflow-item" onclick="toggleThemeMenu()">🎨 theme</button>
+                <div id="theme-submenu" style="display:none;position:absolute;left:100%;top:0;background:var(--panel);border:1px solid var(--accent);border-radius:4px;min-width:140px;box-shadow:0 8px 24px rgba(0,0,0,0.6);">
+                    <button class="overflow-item" onclick="changeTheme('cyber');closeOverflow();">Cyber</button>
+                    <button class="overflow-item" onclick="changeTheme('vaporwave');closeOverflow();">Vaporwave</button>
+                    <button class="overflow-item" onclick="changeTheme('win95');closeOverflow();">Windows 95</button>
+                </div>
                 <button class="overflow-item" onclick="exportConfig();closeOverflow()">↓ export</button>
                 <button class="overflow-item" onclick="openImport();closeOverflow()">↑ import</button>
                 <button class="overflow-item danger" onclick="resetAll();closeOverflow()">✕ reset all</button>
@@ -725,6 +790,10 @@ function toggleAutoRefreshMenu() {
     document.getElementById('ar-menu-label').textContent = autoRefreshOn ? '⏸ pause auto-refresh' : '▶ resume auto-refresh';
     toast('auto-refresh ' + (autoRefreshOn ? 'on' : 'off'));
     closeOverflow();
+}
+function toggleThemeMenu() {
+    const submenu = document.getElementById('theme-submenu');
+    submenu.style.display = submenu.style.display === 'block' ? 'none' : 'block';
 }
 
 // ── DATA ──────────────────────────────────────────────────────────────────────
@@ -1291,6 +1360,50 @@ document.getElementById('auto-refresh').addEventListener('change', function() {
     autoRefreshOn = this.checked;
     this.checked ? startAutoRefresh() : stopAutoRefresh();
     toast(this.checked ? 'auto-refresh on' : 'auto-refresh off');
+});
+
+// ── THEME SWITCHER ─────────────────────────────────────────────────────────────
+const THEME_KEY = 'tweak_view.theme';
+
+function getSavedTheme() {
+    try {
+        const saved = localStorage.getItem(THEME_KEY);
+        return saved || 'cyber';
+    } catch (e) {
+        return 'cyber';
+    }
+}
+
+function applyTheme(themeName) {
+    const body = document.body;
+    body.classList.remove('theme-vaporwave', 'theme-win95');
+
+    if (themeName === 'vaporwave') {
+        body.classList.add('theme-vaporwave');
+    } else if (themeName === 'win95') {
+        body.classList.add('theme-win95');
+    } // 'cyber' is the default (no extra class)
+
+    try {
+        localStorage.setItem(THEME_KEY, themeName);
+    } catch (e) {
+        // Local storage not available, ignore
+    }
+
+    // Update the selector dropdown
+    const selector = document.getElementById('theme-selector');
+    if (selector) selector.value = themeName;
+}
+
+function changeTheme(themeName) {
+    applyTheme(themeName);
+    toast(`theme: ${themeName}`);
+}
+
+// Initialize theme on page load
+document.addEventListener('DOMContentLoaded', () => {
+    const savedTheme = getSavedTheme();
+    applyTheme(savedTheme);
 });
 
 // ── INIT ──────────────────────────────────────────────────────────────────────
