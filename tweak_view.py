@@ -522,6 +522,7 @@ class Tweak_View(plugins.Plugin):
     </div>
 
     <div class="topbar-actions">
+        <button class="btn btn-sm" onclick="location.href='/plugins'">‹ plugins</button>
         <!-- Desktop: auto-refresh toggle -->
         <label class="toggle-label desktop-only">
             <input type="checkbox" class="toggle-input" id="auto-refresh" checked>
@@ -928,7 +929,7 @@ function renderProperties() {
             const hint = screenW && screenH ? `<div style="font-size:10px;color:var(--text-dim);margin-bottom:6px;">screen: ${screenW}×${screenH} — values clamped to bounds</div>` : '';
             h += `
                 <div class="xy-col"><label>X0</label>
-                    <input type="number" class="prop-input" id="xy_x0" value="${p[0].trim()}" oninput="liveShape()">
+                    <input type="number" class="prop-input" id="xy_x0" value="${p[0].trim()}" oninput="liveShape()" onchange="applyChanges()">
                     <div class="nudge-row">
                         <button class="nudge-btn" onclick="nudgeShape('x0',-10)">-10</button>
                         <button class="nudge-btn" onclick="nudgeShape('x0',-1)">-1</button>
@@ -936,7 +937,7 @@ function renderProperties() {
                         <button class="nudge-btn" onclick="nudgeShape('x0',10)">+10</button>
                     </div></div>
                 <div class="xy-col"><label>Y0</label>
-                    <input type="number" class="prop-input" id="xy_y0" value="${p[1].trim()}" oninput="liveShape()">
+                    <input type="number" class="prop-input" id="xy_y0" value="${p[1].trim()}" oninput="liveShape()" onchange="applyChanges()">
                     <div class="nudge-row">
                         <button class="nudge-btn" onclick="nudgeShape('y0',-10)">-10</button>
                         <button class="nudge-btn" onclick="nudgeShape('y0',-1)">-1</button>
@@ -944,7 +945,7 @@ function renderProperties() {
                         <button class="nudge-btn" onclick="nudgeShape('y0',10)">+10</button>
                     </div></div>
                 <div class="xy-col"><label>X1</label>
-                    <input type="number" class="prop-input" id="xy_x1" value="${p[2].trim()}" oninput="liveShape()">
+                    <input type="number" class="prop-input" id="xy_x1" value="${p[2].trim()}" oninput="liveShape()" onchange="applyChanges()">
                     <div class="nudge-row">
                         <button class="nudge-btn" onclick="nudgeShape('x1',-10)">-10</button>
                         <button class="nudge-btn" onclick="nudgeShape('x1',-1)">-1</button>
@@ -952,7 +953,7 @@ function renderProperties() {
                         <button class="nudge-btn" onclick="nudgeShape('x1',10)">+10</button>
                     </div></div>
                 <div class="xy-col"><label>Y1</label>
-                    <input type="number" class="prop-input" id="xy_y1" value="${p[3].trim()}" oninput="liveShape()">
+                    <input type="number" class="prop-input" id="xy_y1" value="${p[3].trim()}" oninput="liveShape()" onchange="applyChanges()">
                     <div class="nudge-row">
                         <button class="nudge-btn" onclick="nudgeShape('y1',-10)">-10</button>
                         <button class="nudge-btn" onclick="nudgeShape('y1',-1)">-1</button>
@@ -966,7 +967,7 @@ function renderProperties() {
             const hint = screenW && screenH ? `<div style="font-size:10px;color:var(--text-dim);margin-bottom:6px;">screen: ${screenW}×${screenH} — values clamped to bounds</div>` : '';
             h += `
                 <div class="xy-col"><label>X</label>
-                    <input type="number" class="prop-input" id="xy_x" value="${(p[0]||'0').trim()}" oninput="liveXY()">
+                    <input type="number" class="prop-input" id="xy_x" value="${(p[0]||'0').trim()}" oninput="liveXY()" onchange="applyChanges()">
                     <div class="nudge-row">
                         <button class="nudge-btn" onclick="nudge('x',-10)">-10</button>
                         <button class="nudge-btn" onclick="nudge('x',-1)">-1</button>
@@ -974,7 +975,7 @@ function renderProperties() {
                         <button class="nudge-btn" onclick="nudge('x',10)">+10</button>
                     </div></div>
                 <div class="xy-col"><label>Y</label>
-                    <input type="number" class="prop-input" id="xy_y" value="${(p[1]||'0').trim()}" oninput="liveXY()">
+                    <input type="number" class="prop-input" id="xy_y" value="${(p[1]||'0').trim()}" oninput="liveXY()" onchange="applyChanges()">
                     <div class="nudge-row">
                         <button class="nudge-btn" onclick="nudge('y',-10)">-10</button>
                         <button class="nudge-btn" onclick="nudge('y',-1)">-1</button>
@@ -1007,12 +1008,12 @@ function setProp(key, value) {
     renderList();
 }
 
-// Helper: get value from an xy input across both panels (both have same id, pick the filled one)
+// Helper: get value from an xy input across both panels (both have same id, pick the visible one)
 function getInputVal(id) {
-    // querySelectorAll gets all matching ids; return the first with a value, preferring visible
+    // querySelectorAll gets all matching ids; return the first with a value that is actually visible
     const els = document.querySelectorAll('#' + id);
     for (const el of els) {
-        if (el && el.value !== '') return el.value;
+        if (el && el.value !== '' && el.offsetParent !== null) return el.value;
     }
     return '0';
 }
@@ -1025,25 +1026,18 @@ function syncInputs(id, val) {
 function liveXY() {
     const x = getInputVal('xy_x');
     const y = getInputVal('xy_y');
-    // Clamp to screen bounds
-    const cx = clampCoord(parseInt(x)||0, 'x');
-    const cy = clampCoord(parseInt(y)||0, 'y');
-    syncInputs('xy_x', cx);
-    syncInputs('xy_y', cy);
-    setProp('xy', `${cx},${cy}`);
+    // Update the data model and live preview without resetting the input fields
+    setProp('xy', `${x},${y}`);
     drawOverlayAll(currentEl);
 }
 
 function liveShape() {
-    const x0 = parseInt(getInputVal('xy_x0'))||0;
-    const y0 = parseInt(getInputVal('xy_y0'))||0;
-    const x1 = parseInt(getInputVal('xy_x1'))||0;
-    const y1 = parseInt(getInputVal('xy_y1'))||0;
-    const cx0 = clampCoord(x0, 'x'), cy0 = clampCoord(y0, 'y');
-    const cx1 = clampCoord(x1, 'x'), cy1 = clampCoord(y1, 'y');
-    syncInputs('xy_x0', cx0); syncInputs('xy_y0', cy0);
-    syncInputs('xy_x1', cx1); syncInputs('xy_y1', cy1);
-    setProp('xy', `${cx0},${cy0},${cx1},${cy1}`);
+    const x0 = getInputVal('xy_x0');
+    const y0 = getInputVal('xy_y0');
+    const x1 = getInputVal('xy_x1');
+    const y1 = getInputVal('xy_y1');
+    // Update the data model and live preview without resetting the input fields
+    setProp('xy', `${x0},${y0},${x1},${y1}`);
     drawOverlayAll(currentEl);
 }
 
@@ -1075,6 +1069,33 @@ function nudgeShape(axis, amount) {
 // ── APPLY / REVERT / DELETE ───────────────────────────────────────────────────
 async function applyChanges() {
     if (!currentEl) return;
+
+    const elData = uiState[currentEl];
+    if (elData && elData.properties) {
+        // Handle XY coordinates: clamp and sync both desktop/mobile panels
+        if (elData.is_line_or_shape && elData.properties.xy) {
+            // 4-point xy: x0,y0,x1,y1
+            let parts = String(elData.properties.xy).split(',').map(v => parseInt(v.trim()) || 0);
+            while (parts.length < 4) parts.push(0);
+            parts[0] = clampCoord(parts[0], 'x');
+            parts[1] = clampCoord(parts[1], 'y');
+            parts[2] = clampCoord(parts[2], 'x');
+            parts[3] = clampCoord(parts[3], 'y');
+            elData.properties.xy = `${parts[0]},${parts[1]},${parts[2]},${parts[3]}`;
+            syncInputs('xy_x0', parts[0]); syncInputs('xy_y0', parts[1]);
+            syncInputs('xy_x1', parts[2]); syncInputs('xy_y1', parts[3]);
+        } else if (elData.properties.xy) {
+            // 2-point xy: x,y
+            let parts = String(elData.properties.xy).split(',').map(v => parseInt(v.trim()) || 0);
+            if (parts.length < 2) parts = [parts[0]||0, parts[1]||0];
+            let x = clampCoord(parts[0], 'x');
+            let y = clampCoord(parts[1], 'y');
+            elData.properties.xy = `${x},${y}`;
+            syncInputs('xy_x', x); syncInputs('xy_y', y);
+        }
+        // Other properties are already in sync via setProp and don't need clamping
+    }
+
     try {
         const r = await fetch('/plugins/tweak_view/api/update', {
             method: 'POST',
@@ -1107,6 +1128,7 @@ async function revertElement() {
             toast('reverted');
             modifiedEls.delete(currentEl);
             await fetchState();
+            renderProperties();
             setTimeout(refreshAll, 400);
         } else {
             toast('revert failed', 'error');
