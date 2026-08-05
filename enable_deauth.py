@@ -9,15 +9,15 @@ import pwnagotchi.ui.fonts as fonts
 
 try:
     sys.path.append(os.path.dirname(__file__))
-    from Touch_UI import Touch_Button, Touch_Screen
+    from Touch_UI import Touch_Button
     TOUCH_ENABLED = True
-except Exception as e:
+except ImportError:
     TOUCH_ENABLED = False
-    logging.debug(repr(e))
+    logging.debug("Touch_UI not available for enable_deauth")
 
 class enable_deauth(plugins.Plugin):
     __author__ = 'Sniffleupagus'
-    __version__ = '1.0.0'
+    __version__ = '1.0.2'
     __license__ = 'GPL3'
     __description__ = 'Enable and disable DEAUTH on the fly. Enabled when plugin loads, disabled when plugin unloads.'
 
@@ -30,14 +30,10 @@ class enable_deauth(plugins.Plugin):
         self._behave = False
         self._deauth_enable = True
 
-        self._current_aps = []
-
-    # make web_ui that lists hosts. click to add to behave_list, or deauth
-    # button to toggle
 
     # called when the plugin is loaded
     def on_loaded(self):
-        logging.info("[EnableDeauth] loaded %s" % repr(self.options))
+        logging.info("[Enable_Deauth] loaded %s" % repr(self.options))
         self._count = 0
 
         # set personality.deauth to this when ready
@@ -53,7 +49,7 @@ class enable_deauth(plugins.Plugin):
         try:
             ui.remove_element('deauth_count')
         except Exception as e:
-            logging.warn(repr(e))
+            logging.warning("[Enable_Deauth] unload error: %s" % repr(e))
 
         logging.info("[Enable_Deauth] unloading: disabled deauth")
 
@@ -74,11 +70,11 @@ class enable_deauth(plugins.Plugin):
     def on_touch_ready(self, touchscreen):
         self._touchscreen = touchscreen
         self.hasTouch = self._touchscreen and self._touchscreen.running
-        logging.info("[DEAUTH] Touchscreen %s" % repr(touchscreen))
+        logging.info("[Enable_Deauth] Touchscreen %s" % repr(touchscreen))
 
     # click on release
     def on_touch_release(self, ts, ui, ui_element, touch_data):
-        logging.debug("[DEAUTH] Touch press: %s" % repr(touch_data));
+        logging.debug("[Enable_Deauth] Touch release: %s" % repr(touch_data))
         try:
             if ui_element == "deauth_count":
                 logging.debug("Toggling %s" % repr(self._agent._config['personality']['deauth']))
@@ -89,7 +85,7 @@ class enable_deauth(plugins.Plugin):
                 logging.info("Toggled deauth to %s" % repr(self._ui._state._state['deauth_count'].state))
 
         except Exception as err:
-            logging.info("%s" % repr(err))
+            logging.warning("[Enable_Deauth] touch error: %s" % repr(err))
 
     def on_deauthentication(self, agent, access_point, client_station):
         self._count += 1
@@ -121,7 +117,7 @@ class enable_deauth(plugins.Plugin):
                 ui.add_element('deauth_count', LabeledValue(color=BLACK, label='D', value='', position=pos,
                                                            label_font=fonts.BoldSmall, text_font=fonts.Small))
         except Exception as err:
-            logging.info("enable deauth ui error: %s" % repr(err))
+            logging.warning("[Enable_Deauth] ui setup error: %s" % repr(err))
 
     # called when refreshing AP list
     def on_unfiltered_ap_list(self, agent, access_points):
@@ -130,7 +126,7 @@ class enable_deauth(plugins.Plugin):
             if ap.get('hostname', '[no hostname]') in self._behave_list:
                 oh_behave = True
                 if self._behave == False:
-                    logging.info("%s visible: behaving" % ap.get('hostname', '[unknown]'))
+                    logging.info("[Enable_Deauth] %s visible: behaving" % ap.get('hostname', '[unknown]'))
             elif ap.get('mac', '[no hostname]').lower() in self._behave_list:
                 oh_behave = True
 
@@ -139,7 +135,7 @@ class enable_deauth(plugins.Plugin):
         if oh_behave and not self._behave:
             self._behave = True
             agent._config['personality']['deauth'] = False
-            logging.info("Home networks visible. Pausing")
+            logging.info("[Enable_Deauth] Home networks visible. Pausing")
             if self._ui:
                 d_label = self._ui._state._state['deauth_count']
                 try:
@@ -148,7 +144,7 @@ class enable_deauth(plugins.Plugin):
                     d_label.text = d_label.text.lower()
         elif self._behave and not oh_behave:
             self._behave = False
-            logging.info("Home networks gone. Enabled: %s", self._deauth_enable)
+            logging.info("[Enable_Deauth] Home networks gone. Enabled: %s" % self._deauth_enable)
             agent._config['personality']['deauth'] = self._deauth_enable
             if self._ui:
                 d_label = self._ui._state._state['deauth_count']
@@ -168,7 +164,7 @@ class enable_deauth(plugins.Plugin):
 
                 if apname in self._behave_list or apmac in self._behave_list:
                     self._behave = True
-                    logging.info("%s (%s) appeared: behaving" % (apname, apmac))
+                    logging.info("[Enable_Deauth] %s (%s) appeared: behaving" % (apname, apmac))
                     agent._config['personality']['deauth'] = False
                     if self._ui:
                         d_label = self._ui._state._state['deauth_count']
@@ -178,12 +174,8 @@ class enable_deauth(plugins.Plugin):
                             d_label.text = d_label.text.lower()
 
         except Exception as e:
-            logging.exception(repr(e))
+            logging.exception("[Enable_Deauth] %s" % repr(e))
 
     # called when the ui is updated
     def on_ui_update(self, ui):
-        # update those elements
-        try:
-            ui.set('deauth_count', str(self._count))  # Update with current deauth count
-        except Exception as err:
-            logging.info("enable deauth ui error: %s" % repr(err))
+        ui.set('deauth_count', str(self._count))
